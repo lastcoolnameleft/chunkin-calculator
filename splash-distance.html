@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Splash Distance Tracker</title>
+<style>
+:root{
+  --ink:#0f2436; --paper:#f2ede2; --line:#c9bfa8;
+  --deep:#173a52; --lake:#2f6f7a; --lake2:#4a95a0; --amber:#c9832f;
+  --danger:#a3401f; --card:#fbf8f0;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8e2d2; --paper:#101c24; --line:#33475a;
+    --deep:#bcd6e6; --lake:#7fc4cf; --lake2:#4a95a0; --amber:#e2a355;
+    --card:#152530;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8e2d2; --paper:#101c24; --line:#33475a;
+  --deep:#bcd6e6; --lake:#7fc4cf; --lake2:#4a95a0; --amber:#e2a355;
+  --card:#152530;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:Georgia,'Iowan Old Style',serif;
+  padding:24px 16px 60px; min-height:100%;
+}
+h1{
+  font-size:1.5rem; margin:0 0 4px; font-weight:600; letter-spacing:.2px;
+  font-family:'Trebuchet MS',Georgia,serif;
+}
+.sub{color:var(--lake); font-size:.92rem; margin:0 0 24px; max-width:60ch; line-height:1.5}
+.wrap{max-width:760px; margin:0 auto}
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:3px;
+  padding:18px 20px; margin-bottom:18px;
+}
+.card h2{font-size:1.02rem; margin:0 0 12px; color:var(--deep); font-weight:600}
+.row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end}
+.field{display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px}
+.field label{font-size:.78rem; color:var(--lake); font-family:'Trebuchet MS',sans-serif}
+input,select{
+  font:inherit; padding:8px 9px; border:1px solid var(--line); border-radius:2px;
+  background:var(--paper); color:var(--ink); font-size:.95rem; width:100%;
+}
+input:focus,select:focus,button:focus{outline:2px solid var(--lake2); outline-offset:1px}
+button{
+  font:inherit; background:var(--deep); color:var(--paper); border:none;
+  padding:9px 16px; border-radius:2px; cursor:pointer; font-size:.9rem;
+  font-family:'Trebuchet MS',sans-serif;
+}
+button.secondary{background:transparent; color:var(--deep); border:1px solid var(--line)}
+button:hover{opacity:.88}
+.setup-status{font-size:.85rem; color:var(--lake); margin-top:8px}
+.result{
+  font-size:2.1rem; color:var(--amber); font-weight:700; margin:4px 0;
+  font-family:'Trebuchet MS',sans-serif;
+}
+.result-unit{font-size:1rem; color:var(--lake)}
+.warn{color:var(--danger); font-size:.85rem; margin-top:6px}
+table{width:100%; border-collapse:collapse; font-size:.85rem; margin-top:6px}
+th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--line)}
+th{color:var(--lake); font-weight:600; font-family:'Trebuchet MS',sans-serif; font-size:.75rem; text-transform:none}
+th.num,td.num{text-align:right; font-variant-numeric:tabular-nums}
+th.action,td.action{text-align:center; width:36px; padding-left:0; padding-right:4px}
+.del{background:none; border:none; color:var(--danger); cursor:pointer; padding:2px 6px; font-size:1rem}
+svg{width:100%; height:auto; display:block; background:var(--paper); border:1px solid var(--line); border-radius:2px}
+.scroll{overflow-x:auto}
+textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; padding:8px; border:1px solid var(--line); border-radius:2px; background:var(--paper); color:var(--ink)}
+.tiny{font-size:.78rem; color:var(--lake); margin-top:8px; line-height:1.5}
+.empty{color:var(--lake); font-size:.88rem; padding:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Splash Distance Tracker</h1>
+  <p class="sub">Triangulate trebuchet landing distance from two shore stations — spotters read one angle each, no math required on their end.</p>
+
+  <div class="card" id="setupCard">
+    <h2>1. Setup (once, before the event)</h2>
+    <div class="row">
+      <div class="field">
+        <label for="baseline">Baseline: distance from Station A to Station B</label>
+        <input type="number" id="baseline" step="0.1" min="0" placeholder="e.g. 40">
+      </div>
+      <div class="field" style="max-width:110px">
+        <label for="unit">Units</label>
+        <select id="unit"><option value="ft">feet</option><option value="m">meters</option></select>
+      </div>
+      <button onclick="saveSetup()">Save setup</button>
+    </div>
+    <div class="setup-status" id="setupStatus">No baseline saved yet.</div>
+    <p class="tiny">Stations A and B just need a clear view of the whole lake — one pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
+  </div>
+
+  <div class="card" id="trebCard">
+    <h2>2. Trebuchets (one-time survey, do for each of the four)</h2>
+    <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the lake, negative angles down to -180° sweep behind the baseline).</p>
+    <div class="row">
+      <div class="field"><label for="trebName">Name</label><input type="text" id="trebName" placeholder="Trebuchet 1"></div>
+      <div class="field"><label for="trebDist">Distance from Station A</label><input type="number" id="trebDist" step="0.1" min="0"></div>
+      <div class="field"><label for="trebAngle">Angle from baseline (°)</label><input type="number" id="trebAngle" step="0.1" min="-180" max="180"></div>
+      <button onclick="addTrebuchet()">Add trebuchet</button>
+    </div>
+    <table style="margin-top:10px" id="trebTable">
+      <thead><tr><th>Name</th><th class="num">Dist. from A</th><th class="num">Angle</th><th class="action"></th></tr></thead>
+      <tbody id="trebBody"><tr><td colspan="4" class="empty">No trebuchets added yet — you can still log shots measured from Station A directly.</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>3. Log a shot</h2>
+    <div class="row">
+      <div class="field"><label for="label">Shot label</label><input type="text" id="label" placeholder="Shot 1"></div>
+      <div class="field"><label for="trebSelect">Trebuchet</label><select id="trebSelect"><option value="">— from Station A —</option></select></div>
+      <div class="field"><label for="angA">Angle at Station A (°)</label><input type="number" id="angA" step="0.1" min="0" max="179"></div>
+      <div class="field"><label for="angB">Angle at Station B (°)</label><input type="number" id="angB" step="0.1" min="0" max="179"></div>
+      <div class="field"><label for="known">Known actual distance (optional — for testing)</label><input type="number" id="known" step="0.1" min="0"></div>
+      <button onclick="addShot()">Add shot</button>
+    </div>
+    <div id="lastResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Shot log</h2>
+    <div class="scroll">
+    <table id="shotTable">
+      <thead><tr><th>Shot</th><th>Trebuchet</th><th class="num">∠A</th><th class="num">∠B</th><th class="num">Distance</th><th class="num">Baseline check</th><th class="num">Error</th><th class="action"></th></tr></thead>
+      <tbody id="shotBody"><tr><td colspan="8" class="empty">No shots logged yet.</td></tr></tbody>
+    </table>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="secondary" onclick="showCsv()">Show CSV (copy/paste into a spreadsheet)</button>
+      <button class="secondary" onclick="clearAll()">Clear all shots</button>
+    </div>
+    <textarea id="csvBox" style="display:none; margin-top:10px"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Diagram</h2>
+    <svg id="diagram" viewBox="0 0 600 340"></svg>
+    <p class="tiny">Station A (launch) is fixed at left, Station B at right, splash points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let setup=null, shots=[], trebs=[];
+try{ const s=localStorage.getItem('td_setup'); if(s) setup=JSON.parse(s); }catch(e){}
+try{ const sh=localStorage.getItem('td_shots'); if(sh) shots=JSON.parse(sh); }catch(e){}
+try{ const t=localStorage.getItem('td_trebs'); if(t) trebs=JSON.parse(t); }catch(e){}
+
+function persist(){
+  try{ localStorage.setItem('td_setup', JSON.stringify(setup)); }catch(e){}
+  try{ localStorage.setItem('td_shots', JSON.stringify(shots)); }catch(e){}
+  try{ localStorage.setItem('td_trebs', JSON.stringify(trebs)); }catch(e){}
+}
+function trebPos(t){
+  const r=t.angle*Math.PI/180;
+  return {x: t.dist*Math.cos(r), y: t.dist*Math.sin(r)};
+}
+function addTrebuchet(){
+  const name=$('trebName').value.trim() || ('Trebuchet '+(trebs.length+1));
+  const dist=parseFloat($('trebDist').value), angle=parseFloat($('trebAngle').value);
+  if(isNaN(dist)||isNaN(angle)){ alert('Enter distance and angle for this trebuchet.'); return; }
+  trebs.push({name, dist, angle});
+  persist();
+  $('trebName').value=''; $('trebDist').value=''; $('trebAngle').value='';
+  renderTrebs();
+}
+function delTreb(i){ trebs.splice(i,1); persist(); renderTrebs(); }
+function renderTrebs(){
+  const body=$('trebBody'), sel=$('trebSelect');
+  if(!trebs.length){ body.innerHTML='<tr><td colspan="4" class="empty">No trebuchets added yet — you can still log shots measured from Station A directly.</td></tr>'; }
+  else{
+    body.innerHTML = trebs.map((t,i)=>`<tr><td>${t.name}</td><td class="num">${t.dist}</td><td class="num">${t.angle}°</td><td class="action"><button class="del" onclick="delTreb(${i})" aria-label="Delete">✕</button></td></tr>`).join('');
+  }
+  sel.innerHTML = '<option value="">— from Station A —</option>' + trebs.map((t,i)=>`<option value="${i}">${t.name}</option>`).join('');
+}
+function saveSetup(){
+  const b=parseFloat($('baseline').value), u=$('unit').value;
+  if(!b || b<=0){ $('setupStatus').textContent='Enter a baseline distance greater than 0.'; return; }
+  setup={baseline:b, unit:u};
+  persist();
+  renderSetup();
+}
+function renderSetup(){
+  if(setup) $('setupStatus').textContent = `Baseline saved: ${setup.baseline} ${setup.unit} between Station A and Station B.`;
+  if(setup){ $('baseline').value=setup.baseline; $('unit').value=setup.unit; }
+}
+function computeShot(angA, angB, baseline){
+  const angP = 180 - angA - angB;
+  if(angP<=0 || angA<=0 || angB<=0) return null;
+  const rA=angA*Math.PI/180, rB=angB*Math.PI/180, rP=angP*Math.PI/180;
+  const AP = baseline * Math.sin(rB) / Math.sin(rP);
+  const BP = baseline * Math.sin(rA) / Math.sin(rP);
+  const baselineCheck = Math.sqrt(AP*AP + BP*BP - 2*AP*BP*Math.cos(rP));
+  const px = AP*Math.cos(rA), py = AP*Math.sin(rA);
+  return {AP, BP, angP, baselineCheck, px, py};
+}
+function addShot(){
+  if(!setup){ alert('Save the baseline setup first.'); return; }
+  const angA=parseFloat($('angA').value), angB=parseFloat($('angB').value);
+  if(isNaN(angA)||isNaN(angB)){ alert('Enter both angle readings.'); return; }
+  const r=computeShot(angA, angB, setup.baseline);
+  if(!r){ $('lastResult').innerHTML='<p class="warn">These two angles don\'t form a valid triangle (they add to 180° or more). Double-check the readings.</p>'; return; }
+  const known=parseFloat($('known').value);
+  const label=$('label').value.trim() || ('Shot '+(shots.length+1));
+  const trebIdx=$('trebSelect').value;
+  let dist, trebName, tx=0, ty=0;
+  if(trebIdx!==''){
+    const t=trebs[trebIdx]; const p=trebPos(t);
+    tx=p.x; ty=p.y; trebName=t.name;
+    dist=Math.hypot(r.px-tx, r.py-ty);
+  } else { dist=r.AP; trebName='Station A'; }
+  const shot={label, treb:trebName, tx, ty, angA, angB, dist, check:r.baselineCheck, px:r.px, py:r.py, known: isNaN(known)?null:known};
+  shots.push(shot);
+  persist();
+  $('lastResult').innerHTML = `<div class="result">${dist.toFixed(1)} <span class="result-unit">${setup.unit}</span></div><div class="tiny">from ${trebName} to splash — baseline self-check: ${r.baselineCheck.toFixed(1)} ${setup.unit} (should be close to ${setup.baseline})</div>`;
+  $('label').value=''; $('angA').value=''; $('angB').value=''; $('known').value='';
+  renderTable(); renderDiagram();
+}
+function renderTable(){
+  const body=$('shotBody');
+  if(!shots.length){ body.innerHTML='<tr><td colspan="8" class="empty">No shots logged yet.</td></tr>'; return; }
+  body.innerHTML = shots.map((s,i)=>{
+    const err = s.known ? (100*Math.abs(s.dist-s.known)/s.known).toFixed(1)+'%' : '—';
+    return `<tr><td>${s.label}</td><td>${s.treb||'Station A'}</td><td class="num">${s.angA}°</td><td class="num">${s.angB}°</td><td class="num">${s.dist.toFixed(1)}</td><td class="num">${s.check.toFixed(1)}</td><td class="num">${err}</td><td class="action"><button class="del" onclick="delShot(${i})" aria-label="Delete">✕</button></td></tr>`;
+  }).join('');
+}
+function delShot(i){ shots.splice(i,1); persist(); renderTable(); renderDiagram(); }
+function clearAll(){ if(confirm('Clear all logged shots?')){ shots=[]; persist(); renderTable(); renderDiagram(); $('lastResult').innerHTML=''; } }
+function showCsv(){
+  const box=$('csvBox');
+  const unit=setup?setup.unit:'';
+  let csv=`Shot,Trebuchet,Angle A (deg),Angle B (deg),Distance (${unit}),Baseline check (${unit}),Known distance (${unit})\n`;
+  shots.forEach(s=>{ csv+=`${s.label},${s.treb||'Station A'},${s.angA},${s.angB},${s.dist.toFixed(2)},${s.check.toFixed(2)},${s.known??''}\n`; });
+  box.value=csv; box.style.display='block'; box.focus(); box.select();
+}
+function renderDiagram(){
+  const svg=$('diagram');
+  const hasBaseline = Boolean(setup && setup.baseline > 0);
+  const hasTrebs = Boolean(trebs && trebs.length > 0);
+  const hasShots = Boolean(shots && shots.length > 0);
+
+  if(!hasBaseline && !hasTrebs && !hasShots){
+    svg.innerHTML = `<text x="300" y="170" text-anchor="middle" fill="var(--lake)" font-size="13" font-family="Georgia">Save baseline or add a trebuchet to see the plot</text>`;
+    return;
+  }
+
+  const baseline = hasBaseline ? Number(setup.baseline) : 0;
+  const trebPts = (trebs || []).map(trebPos);
+
+  const allX = [
+    baseline,
+    ...(shots || []).map(s => s.px),
+    ...trebPts.map(p => p.x)
+  ];
+  const allY = [
+    ...(shots || []).map(s => s.py),
+    ...trebPts.map(p => p.y)
+  ];
+
+  const minX = Math.min(0, ...allX);
+  const maxX = Math.max(...allX, 1);
+  const minY = Math.min(0, ...allY);
+  const maxY = Math.max(...allY, 1);
+
+  const spanX = Math.max(maxX - minX, 1);
+  const spanY = Math.max(maxY - minY, 1);
+  const scaleX = 480 / spanX;
+  const scaleY = 260 / spanY;
+  const scale = Math.min(scaleX, scaleY);
+
+  const ox = 60 - minX * scale;
+  const oy = 290 + minY * scale;
+  const Ax = ox, Ay = oy;
+  const Bx = ox + baseline * scale, By = oy;
+
+  let pts = (shots || []).map(s => {
+    const x = ox + s.px * scale, y = oy - s.py * scale;
+    return `<circle cx="${x}" cy="${y}" r="4" fill="var(--amber)"/><text x="${x + 6}" y="${y - 4}" font-size="10" fill="var(--ink)" font-family="Georgia">${s.label}</text>`;
+  }).join('');
+
+  let tpts = (trebs || []).map((t, i) => {
+    const p = trebPts[i];
+    const x = ox + p.x * scale, y = oy - p.y * scale;
+    return `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="var(--danger)"/><text x="${x + 7}" y="${y + 3}" font-size="10" fill="var(--danger)" font-family="Georgia">${t.name}</text>`;
+  }).join('');
+
+  const baselineMarkup = hasBaseline ? `
+    <line x1="${Ax}" y1="${Ay}" x2="${Bx}" y2="${By}" stroke="var(--lake2)" stroke-width="2"/>
+    <circle cx="${Bx}" cy="${By}" r="5" fill="var(--deep)"/>
+    <text x="${Bx + 6}" y="${By + 20}" font-size="11" fill="var(--deep)" font-family="Georgia">B</text>
+  ` : '';
+
+  const stationAMarkup = `
+    <circle cx="${Ax}" cy="${Ay}" r="5" fill="var(--deep)"/>
+    <text x="${Ax - 6}" y="${Ay + 20}" font-size="11" fill="var(--deep)" font-family="Georgia" text-anchor="end">A</text>
+  `;
+
+  const emptyHint = (!hasTrebs && !hasShots) ? `
+    <text x="300" y="160" text-anchor="middle" fill="var(--lake)" font-size="12" font-family="Georgia" opacity="0.7">Add a trebuchet or log a shot to see it plotted</text>
+  ` : '';
+
+  svg.innerHTML = `
+    ${baselineMarkup}
+    ${stationAMarkup}
+    ${tpts}
+    ${pts}
+    ${emptyHint}
+  `;
+}
+renderSetup(); renderTrebs(); renderTable(); renderDiagram();
+</script>
+</body>
+</html>

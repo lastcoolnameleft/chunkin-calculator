@@ -1,0 +1,21 @@
+{
+  "name": "chunkin-calculator",
+  "version": "1.0.0",
+  "description": "Trebuchet Splash Distance Tracker backend and frontend",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "trebuchet",
+    "triangulation",
+    "distance-tracker"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2"
+  }
+}
