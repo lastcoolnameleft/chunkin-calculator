@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 <title>Splash Distance Tracker</title>
+<script>
+document.documentElement.dataset.spectator = String(/\/spectator\/?$/.test(location.pathname));
+document.documentElement.dataset.editable = 'false';
+</script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
 :root{
   --ink:#0f2436; --paper:#f2ede2; --line:#c9bfa8;
@@ -27,6 +33,8 @@
   --card:#152530;
 }
 *{box-sizing:border-box}
+:root[data-editable="false"] .editor-only,
+:root[data-spectator="true"] .submitter-only{display:none!important}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{
   margin:0; background:var(--paper); color:var(--ink);
@@ -47,6 +55,10 @@ h1{
 .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end}
 .field{display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px}
 .field label{font-size:.78rem; color:var(--lake); font-family:'Trebuchet MS',sans-serif}
+.angle-label{display:flex; align-items:center; justify-content:space-between; gap:6px}
+button.angle-help{background:transparent; color:var(--lake); border:1px solid var(--lake2); border-radius:50%; width:24px; height:24px; padding:0; flex-shrink:0; font-size:.85rem}
+.angle-explanation{font-size:.8rem; line-height:1.5; color:var(--lake); margin:4px 0 0}
+[hidden]{display:none!important}
 input,select{
   font:inherit; padding:8px 9px; border:1px solid var(--line); border-radius:2px;
   background:var(--paper); color:var(--ink); font-size:.95rem; width:100%;
@@ -83,24 +95,36 @@ th{color:var(--lake); font-weight:600; font-family:'Trebuchet MS',sans-serif; fo
 th.num,td.num{text-align:right; font-variant-numeric:tabular-nums}
 th.action,td.action{text-align:center; width:36px; padding-left:0; padding-right:4px}
 .del{background:none; border:none; color:var(--danger); cursor:pointer; padding:2px 6px; font-size:1rem}
-svg{width:100%; height:auto; display:block; background:var(--paper); border:1px solid var(--line); border-radius:2px}
+#diagram{width:100%; height:auto; display:block; background:var(--paper); border:1px solid var(--line); border-radius:2px}
+.event-map-marker{background:none; border:none}
+.event-map-marker svg{display:block; width:32px; height:32px; filter:drop-shadow(0 1px 2px #000)}
+.event-map-label{font-family:'Trebuchet MS',sans-serif; font-weight:600}
 .scroll{overflow-x:auto}
 textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; padding:8px; border:1px solid var(--line); border-radius:2px; background:var(--paper); color:var(--ink)}
 .tiny{font-size:.78rem; color:var(--lake); margin-top:8px; line-height:1.5}
 .empty{color:var(--lake); font-size:.88rem; padding:8px 0}
 .event-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line)}
 .event-item:last-child{border-bottom:none}
+.view-toggle-btn{background:transparent; color:var(--deep); border:1px solid var(--line); padding:5px 12px; font-size:.82rem; font-family:'Trebuchet MS',sans-serif; cursor:pointer;}
+.view-toggle-btn.active{background:var(--deep); color:var(--paper); border-color:var(--deep);}
+.gps-btn{background:transparent; color:var(--lake); border:1px solid var(--lake2); padding:5px 9px; font-size:.78rem; border-radius:2px; cursor:pointer; white-space:nowrap; margin-top:4px;}
+.gps-btn:hover{background:var(--lake); color:var(--paper);}
+#mapContainer{width:100%; height:380px; border:1px solid var(--line); border-radius:2px; display:none; background:#1c2d37;}
+.map-legend{margin-top:8px; display:flex; gap:16px; font-size:.75rem; color:var(--lake); flex-wrap:wrap;}
+.map-legend span{display:inline-flex; align-items:center; gap:4px;}
+.dot-indicator{width:10px; height:10px; border-radius:50%; display:inline-block;}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
     <h1>Splash Distance Tracker</h1>
-    <div id="switchEventContainer" style="display:none;">
+    <div id="switchEventContainer" class="submitter-only" style="display:none;">
       <button class="secondary" style="padding:4px 10px; font-size:.8rem;" onclick="showEventPicker()">Switch Event</button>
     </div>
   </div>
   <p class="sub" id="mainSubtitle">Triangulate trebuchet landing distance from two shore stations — spotters read one angle each, no math required on their end.</p>
+  <p class="tiny"><a href="/how-it-works/" target="_blank" rel="noopener">How this works: a plain-language guide and the math</a></p>
 
   <div id="globalError" class="error-banner"></div>
 
@@ -122,6 +146,10 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <label for="newEventUnit">Units</label>
           <select id="newEventUnit"><option value="ft">feet</option><option value="m">meters</option></select>
         </div>
+        <div class="field">
+          <label for="newEventPassword">Editing password (optional)</label>
+          <input type="password" id="newEventPassword" maxlength="128" autocomplete="new-password">
+        </div>
         <button type="button" onclick="handleCreateEvent()">Create Event</button>
       </div>
 
@@ -135,12 +163,42 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
   <!-- Main Tracker View (shown when an event is active) -->
   <div id="trackerSection" style="display:none;">
     <div class="share-bar" id="shareBar">
-      <span>Share Event Tracker URL:</span>
+      <span>Share Spectator URL:</span>
       <input type="text" id="shareUrlInput" readonly onclick="this.select()">
-      <button class="secondary" style="padding:5px 12px; font-size:.82rem;" onclick="copyShareUrl()">Copy URL</button>
+      <button id="copyShareButton" type="button" class="secondary" style="padding:5px 12px; font-size:.82rem;" aria-live="polite" onclick="copyShareUrl()">Copy URL</button>
+      <a id="spectatorLink" target="_blank" rel="noopener">Open spectator view</a>
     </div>
 
-    <div class="card" id="setupCard">
+    <p class="tiny" id="liveStatus" role="status" aria-live="polite">Connecting to event...</p>
+    <div class="card submitter-only" id="unlockCard" style="display:none;">
+      <h2>Unlock editing</h2>
+      <p class="tiny">Enter this event's shared password to change setup, trebuchets, or shots. You can still view everything below.</p>
+      <form onsubmit="unlockEvent(event)" class="row">
+        <div class="field">
+          <label for="eventPassword">Event password</label>
+          <input type="password" id="eventPassword" maxlength="128" autocomplete="current-password" required>
+        </div>
+        <button type="submit">Unlock</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2 id="eventSummaryName">Event</h2>
+      <p class="setup-status" id="eventSummarySetup"></p>
+    </div>
+    <details class="card editor-only">
+      <summary>Editing access</summary>
+      <p class="tiny" id="accessNotice"></p>
+      <form class="row" onsubmit="changePassword(event)">
+        <div class="field">
+          <label for="changeEventPassword">New editing password (leave blank to allow anyone to edit)</label>
+          <input type="password" id="changeEventPassword" maxlength="128" autocomplete="new-password">
+        </div>
+        <button type="submit">Save password</button>
+        <button type="button" class="secondary" onclick="lockEditor()">Lock editor</button>
+      </form>
+    </details>
+
+    <div class="card editor-only" id="setupCard">
       <h2>1. Setup (<span id="eventHeadingName">Event</span>)</h2>
       <div class="row">
         <div class="field">
@@ -153,32 +211,85 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
         </div>
         <button onclick="saveSetup()">Save setup</button>
       </div>
+
+      <!-- Optional Station GPS Coordinates for Satellite Map Overlay -->
+      <details style="margin-top:14px; border:1px dashed var(--line); border-radius:3px; padding:10px 14px; background:var(--card);">
+        <summary style="font-family:'Trebuchet MS',sans-serif; font-size:.85rem; font-weight:600; color:var(--lake); cursor:pointer;">
+          Optional: Satellite Map Overlay (GPS Coordinates)
+        </summary>
+        <p class="tiny" style="margin-top:6px; margin-bottom:12px;">
+          Enter latitude/longitude for Station A &amp; B (or tap <strong>Capture GPS</strong> while standing at the station). Optical theodolite/angle measurements remain the authoritative calculation for competition scores; GPS coordinates provide a visual satellite map overlay and sanity check.
+        </p>
+        <div style="display:flex; flex-wrap:wrap; gap:16px;">
+          <div style="flex:1; min-width:240px; padding:10px; border:1px solid var(--line); border-radius:3px; background:var(--paper);">
+            <div style="font-weight:600; font-size:.85rem; color:var(--deep); margin-bottom:6px;">Station A (Origin)</div>
+            <div class="row" style="gap:8px; margin-bottom:6px;">
+              <div class="field"><label for="stALat" style="font-size:.75rem;">Latitude</label><input type="number" step="0.000001" id="stALat" placeholder="e.g. 39.123456"></div>
+              <div class="field"><label for="stALng" style="font-size:.75rem;">Longitude</label><input type="number" step="0.000001" id="stALng" placeholder="e.g. -76.987654"></div>
+            </div>
+            <button type="button" class="gps-btn" onclick="captureStationGps('A')">📍 Capture Station A GPS</button>
+          </div>
+          <div style="flex:1; min-width:240px; padding:10px; border:1px solid var(--line); border-radius:3px; background:var(--paper);">
+            <div style="font-weight:600; font-size:.85rem; color:var(--deep); margin-bottom:6px;">Station B</div>
+            <div class="row" style="gap:8px; margin-bottom:6px;">
+              <div class="field"><label for="stBLat" style="font-size:.75rem;">Latitude</label><input type="number" step="0.000001" id="stBLat" placeholder="e.g. 39.123567"></div>
+              <div class="field"><label for="stBLng" style="font-size:.75rem;">Longitude</label><input type="number" step="0.000001" id="stBLng" placeholder="e.g. -76.987543"></div>
+            </div>
+            <button type="button" class="gps-btn" onclick="captureStationGps('B')">📍 Capture Station B GPS</button>
+          </div>
+        </div>
+        <div style="margin-top:10px; text-align:right;">
+          <button type="button" class="secondary" style="font-size:.82rem; padding:6px 14px;" onclick="saveSetup()">Save GPS Coordinates</button>
+        </div>
+      </details>
+
       <div class="setup-status" id="setupStatus">No baseline saved yet.</div>
       <p class="tiny">Stations A and B just need a clear view of the whole lake — one pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
     </div>
 
     <div class="card" id="trebCard">
-      <h2>2. Trebuchets (one-time survey, do for each of the four)</h2>
+      <h2>Trebuchets</h2>
       <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the lake, negative angles down to -180° sweep behind the baseline).</p>
-      <div class="row">
+      <div class="row editor-only">
         <div class="field"><label for="trebName">Name</label><input type="text" id="trebName" placeholder="Trebuchet 1"></div>
         <div class="field"><label for="trebDist">Distance from Station A</label><input type="number" id="trebDist" step="0.1" min="0"></div>
-        <div class="field"><label for="trebAngle">Angle from baseline (°)</label><input type="number" id="trebAngle" step="0.1" min="-180" max="180"></div>
+        <div class="field">
+          <div class="angle-label">
+            <label for="trebAngle">Angle from baseline (°)</label>
+            <button type="button" class="angle-help" aria-label="Help with trebuchet survey angle" aria-expanded="false" aria-controls="trebAngleHelp" onclick="toggleAngleHelp(this)">?</button>
+          </div>
+          <input type="number" id="trebAngle" step="0.1" min="-180" max="180" aria-describedby="trebAngleHelp">
+          <p class="angle-explanation" id="trebAngleHelp" hidden>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>trebuchet</strong>. Enter the angle between those two sight lines. Angles into the lake are positive; angles behind the A–B baseline are negative (down to -180°). This is the trebuchet's position angle, not its launch angle.</p>
+        </div>
         <button onclick="addTrebuchet()">Add trebuchet</button>
       </div>
       <table style="margin-top:10px" id="trebTable">
-        <thead><tr><th>Name</th><th class="num">Dist. from A</th><th class="num">Angle</th><th class="action"></th></tr></thead>
+        <thead><tr><th>Name</th><th class="num">Dist. from A</th><th class="num">Angle</th><th class="action editor-only"></th></tr></thead>
         <tbody id="trebBody"><tr><td colspan="4" class="empty">No trebuchets added yet — you can still log shots measured from Station A directly.</td></tr></tbody>
       </table>
     </div>
 
-    <div class="card">
+    <div class="card editor-only">
       <h2>3. Log a shot</h2>
       <div class="row">
         <div class="field"><label for="label">Shot label</label><input type="text" id="label" placeholder="Shot 1"></div>
         <div class="field"><label for="trebSelect">Trebuchet</label><select id="trebSelect"><option value="">— from Station A —</option></select></div>
-        <div class="field"><label for="angA">Angle at Station A (°)</label><input type="number" id="angA" step="0.1" min="0" max="179"></div>
-        <div class="field"><label for="angB">Angle at Station B (°)</label><input type="number" id="angB" step="0.1" min="0" max="179"></div>
+        <div class="field">
+          <div class="angle-label">
+            <label for="angA">Angle at Station A (°)</label>
+            <button type="button" class="angle-help" aria-label="Help with Station A angle" aria-expanded="false" aria-controls="angAHelp" onclick="toggleAngleHelp(this)">?</button>
+          </div>
+          <input type="number" id="angA" step="0.1" min="0" max="179" aria-describedby="angAHelp">
+          <p class="angle-explanation" id="angAHelp" hidden>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>splash</strong>. Report the angle between the A→B sight line and the A→splash sight line, with the corner at A. Do not measure from the trebuchet or use an absolute compass bearing. Example: a quarter-turn from B toward the splash is 90°.</p>
+        </div>
+        <div class="field">
+          <div class="angle-label">
+            <label for="angB">Angle at Station B (°)</label>
+            <button type="button" class="angle-help" aria-label="Help with Station B angle" aria-expanded="false" aria-controls="angBHelp" onclick="toggleAngleHelp(this)">?</button>
+          </div>
+          <input type="number" id="angB" step="0.1" min="0" max="179" aria-describedby="angBHelp">
+          <p class="angle-explanation" id="angBHelp" hidden>Stand at <strong>Station B</strong>. Aim toward <strong>Station A</strong> to set 0°, then turn toward the <strong>splash</strong>. Report the angle between the B→A sight line and the B→splash sight line, with the corner at B. Do not measure from the trebuchet or use the A→B direction as your zero. Both splash angles must be greater than 0° and add up to less than 180°.</p>
+        </div>
         <div class="field"><label for="known">Known actual distance (optional — for testing)</label><input type="number" id="known" step="0.1" min="0"></div>
         <button onclick="addShot()">Add shot</button>
       </div>
@@ -189,30 +300,139 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       <h2>Shot log</h2>
       <div class="scroll">
       <table id="shotTable">
-        <thead><tr><th>Shot</th><th>Trebuchet</th><th class="num">∠A</th><th class="num">∠B</th><th class="num">Distance</th><th class="num">Baseline check</th><th class="num">Error</th><th class="action"></th></tr></thead>
+        <thead><tr><th>Shot</th><th>Trebuchet</th><th class="num">∠A</th><th class="num">∠B</th><th class="num">Distance</th><th class="num">Baseline check</th><th class="num">Error</th><th class="action editor-only"></th></tr></thead>
         <tbody id="shotBody"><tr><td colspan="8" class="empty">No shots logged yet.</td></tr></tbody>
       </table>
       </div>
       <div class="row" style="margin-top:12px">
         <button class="secondary" onclick="showCsv()">Show CSV (copy/paste into a spreadsheet)</button>
-        <button class="secondary" onclick="clearAll()">Clear all shots</button>
+        <button class="secondary editor-only" onclick="clearAll()">Clear all shots</button>
       </div>
-      <textarea id="csvBox" style="display:none; margin-top:10px"></textarea>
+      <textarea id="csvBox" readonly style="display:none; margin-top:10px"></textarea>
     </div>
 
-    <div class="card">
-      <h2>Diagram</h2>
-      <svg id="diagram" viewBox="0 0 600 340"></svg>
-      <p class="tiny">Station A (launch) is fixed at left, Station B at right, splash points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
+    <div class="card" id="visualizerCard">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+        <h2 style="margin:0;">Visualizer</h2>
+        <div style="display:inline-flex; border:1px solid var(--line); border-radius:2px; overflow:hidden;" role="tablist">
+          <button type="button" class="view-toggle-btn" id="btnSchematicView" onclick="switchVisualizerView('schematic')">Schematic</button>
+          <button type="button" class="view-toggle-btn active" id="btnMapView" onclick="switchVisualizerView('map')">Satellite Map</button>
+        </div>
+      </div>
+
+      <!-- Schematic SVG View -->
+      <div id="schematicContainer" style="display:none;">
+        <svg id="diagram" viewBox="0 0 600 340"></svg>
+        <p class="tiny">Station A (launch) is fixed at left, Station B at right, splash points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
+      </div>
+
+      <!-- Leaflet Satellite Map View -->
+      <div id="mapWrapper">
+        <div id="mapContainer"></div>
+        <div id="mapNotice" class="tiny" style="margin-top:8px;"></div>
+        <div class="map-legend">
+          <span><span class="dot-indicator" style="background:#2f6f7a; border:1px solid #ffffff;"></span> Stations A &amp; B</span>
+          <span><span class="dot-indicator" style="background:#c9832f; border:1px solid #ffffff;"></span> Trebuchets</span>
+          <span><span class="dot-indicator" style="background:#173a52; border:1px solid #ffffff;"></span> Splash Points</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+function toggleAngleHelp(button) {
+  const expanded = button.getAttribute('aria-expanded') !== 'true';
+  button.setAttribute('aria-expanded', String(expanded));
+  $(button.getAttribute('aria-controls')).hidden = !expanded;
+}
 let currentEventId = null;
 let currentEvent = null;
 let setup = null, shots = [], trebs = [];
+let spectator = /\/spectator\/?$/.test(window.location.pathname);
+let editable = false;
+let passwordProtected = false;
+const editTokens = new Map();
+
+async function eventFetch(url, options = {}) {
+  const eventId = currentEventId;
+  const headers = new Headers(options.headers);
+  if (!spectator && editTokens.has(eventId)) {
+    headers.set('Authorization', `Bearer ${editTokens.get(eventId)}`);
+  }
+  const res = await fetch(url, { ...options, headers, cache: 'no-store' });
+  if (res.status === 401 && eventId === currentEventId) {
+    editTokens.delete(eventId);
+    editable = false;
+    renderAccess();
+  }
+  return res;
+}
+
+function renderAccess() {
+  document.documentElement.dataset.spectator = String(spectator);
+  document.documentElement.dataset.editable = String(editable && !spectator);
+  $('unlockCard').style.display = passwordProtected && !editable ? 'block' : 'none';
+  $('accessNotice').textContent = passwordProtected
+    ? 'Editing is password-protected. Changing the password locks other editors out.'
+    : 'No password set: anyone with the editor URL can modify this event.';
+  renderTrebs();
+  renderTable();
+}
+
+function requireEditing() {
+  if (editable && !spectator) return true;
+  showInlineError('Editing is locked. Open the submission view and unlock the event first.');
+  return false;
+}
+
+async function unlockEvent(e) {
+  e.preventDefault();
+  try {
+    const eventId = currentEventId;
+    const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: $('eventPassword').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    if (eventId !== currentEventId) return;
+    editTokens.set(eventId, data.token);
+    $('eventPassword').value = '';
+    await loadAll();
+  } catch (err) {
+    showInlineError(`Cannot unlock editing: ${err.message}`);
+  }
+}
+
+async function changePassword(e) {
+  e.preventDefault();
+  if (!requireEditing()) return;
+  const password = $('changeEventPassword').value;
+  if (!password && !confirm('Remove the password and allow anyone to edit this event?')) return;
+  try {
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    $('changeEventPassword').value = '';
+    editTokens.delete(currentEventId);
+    await loadAll();
+  } catch (err) {
+    showInlineError(`Cannot change password: ${err.message}`);
+  }
+}
+
+function lockEditor() {
+  editTokens.delete(currentEventId);
+  editable = !passwordProtected;
+  renderAccess();
+}
 
 // Parse event ID from path `/event/:id` or query param `?event=:id`
 function detectEventId() {
@@ -278,6 +498,7 @@ async function handleCreateEvent() {
   const baselineVal = $('newEventBaseline').value;
   const baseline = baselineVal !== '' ? parseFloat(baselineVal) : null;
   const unit = $('newEventUnit').value || 'ft';
+  const password = $('newEventPassword').value;
 
   if (!name) {
     alert('Please enter an event name.');
@@ -288,7 +509,7 @@ async function handleCreateEvent() {
     const res = await fetch('/api/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, baseline, unit })
+      body: JSON.stringify({ name, baseline, unit, password })
     });
     if (!res.ok) {
       const data = await res.json();
@@ -297,6 +518,23 @@ async function handleCreateEvent() {
     const created = await res.json();
     $('newEventName').value = '';
     $('newEventBaseline').value = '';
+    $('newEventPassword').value = '';
+    if (password) {
+      const sessionRes = await fetch(`/api/events/${encodeURIComponent(created.id)}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (sessionRes.ok) {
+        const session = await sessionRes.json();
+        editTokens.set(created.id, session.token);
+      } else {
+        const data = await sessionRes.json();
+        await selectEvent(created.id);
+        showInlineError(`Event created, but editing could not be unlocked: ${data.error}`);
+        return;
+      }
+    }
     selectEvent(created.id);
   } catch (err) {
     showInlineError(`Error creating event: ${err.message}`);
@@ -304,6 +542,15 @@ async function handleCreateEvent() {
 }
 
 function selectEvent(eventId) {
+  spectator = false;
+  editable = false;
+  currentEvent = null;
+  setup = null;
+  trebs = [];
+  shots = [];
+  $('lastResult').innerHTML = '';
+  $('csvBox').style.display = 'none';
+  renderAccess();
   currentEventId = eventId;
   // Update browser URL without reloading if not already on the event path
   const newPath = `/event/${encodeURIComponent(eventId)}`;
@@ -311,11 +558,17 @@ function selectEvent(eventId) {
     window.history.pushState({ eventId }, '', newPath);
   }
   showTrackerView();
-  loadAll();
+  return loadAll();
 }
 
 function showEventPicker() {
+  if (spectator) {
+    $('trackerSection').style.display = 'none';
+    $('eventSelectSection').style.display = 'none';
+    return;
+  }
   currentEventId = null;
+  currentEvent = null;
   if (window.location.pathname !== '/') {
     window.history.pushState({}, '', '/');
   }
@@ -326,45 +579,70 @@ function showEventPicker() {
 }
 
 function showTrackerView() {
+  const tracker = $('trackerSection');
+  if (spectator) {
+    tracker.prepend($('visualizerCard'));
+  } else {
+    tracker.append($('visualizerCard'));
+  }
   $('eventSelectSection').style.display = 'none';
   $('trackerSection').style.display = 'block';
   $('switchEventContainer').style.display = 'block';
 
-  const shareUrl = `${window.location.origin}/event/${encodeURIComponent(currentEventId)}`;
+  const shareUrl = `${window.location.origin}/event/${encodeURIComponent(currentEventId)}/spectator`;
   $('shareUrlInput').value = shareUrl;
+  $('spectatorLink').href = shareUrl;
+  $('eventSummaryName').textContent = 'Loading event...';
+  $('liveStatus').textContent = 'Connecting to event...';
+  renderSetup();
+  renderDiagram();
+  renderAccess();
+  switchVisualizerView('map');
 }
 
-function copyShareUrl() {
+let copyShareTimer;
+async function copyShareUrl() {
   const input = $('shareUrlInput');
+  const button = $('copyShareButton');
   input.select();
   input.setSelectionRange(0, 99999);
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(input.value).then(() => {
-      alert('Event URL copied to clipboard: ' + input.value);
-    }).catch(() => {
-      alert('Copied URL: ' + input.value);
-    });
-  } else {
-    document.execCommand('copy');
-    alert('Event URL copied to clipboard: ' + input.value);
+  button.disabled = true;
+  clearTimeout(copyShareTimer);
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(input.value);
+    } else if (!document.execCommand('copy')) {
+      throw new Error('Clipboard access is unavailable.');
+    }
+    button.textContent = 'Copied';
+    copyShareTimer = setTimeout(() => { button.textContent = 'Copy URL'; }, 3000);
+  } catch (err) {
+    button.textContent = 'Copy URL';
+    showInlineError(`Could not copy the URL: ${err.message} Select the URL and copy it manually.`);
+  } finally {
+    button.disabled = false;
   }
 }
 
 // Fetch all initial data from server for active event
 async function loadAll() {
   if (!currentEventId) return;
+  const eventId = currentEventId;
+  const requestToken = editTokens.get(eventId);
 
   try {
-    const [eventRes, setupRes, trebsRes, shotsRes] = await Promise.all([
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}`),
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}/setup`),
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets`),
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`)
+    const [eventRes, setupRes, trebsRes, shotsRes, accessRes] = await Promise.all([
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/setup`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/trebuchets`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/shots`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/access`)
     ]);
+    if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
 
     if (!eventRes.ok) {
       if (eventRes.status === 404) {
-        showInlineError(`Event '${currentEventId}' not found. Please select or create an event.`);
+        showInlineError(`Event '${currentEventId}' not found.`);
         showEventPicker();
         return;
       }
@@ -383,41 +661,79 @@ async function loadAll() {
       const errData = await shotsRes.json().catch(() => ({}));
       throw new Error(errData.error || 'Failed to load shots');
     }
+    if (!accessRes.ok) throw new Error('Failed to load editing access');
 
-    currentEvent = await eventRes.json();
-    setup = await setupRes.json();
-    const loadedTrebs = await trebsRes.json();
-    const loadedShots = await shotsRes.json();
+    const [eventData, setupData, loadedTrebs, loadedShots, access] = await Promise.all([
+      eventRes.json(), setupRes.json(), trebsRes.json(), shotsRes.json(), accessRes.json()
+    ]);
+    if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+    currentEvent = eventData;
+    setup = setupData;
+    passwordProtected = access.passwordProtected;
+    editable = access.editable && !spectator;
     trebs = Array.isArray(loadedTrebs) ? loadedTrebs : [];
     shots = Array.isArray(loadedShots) ? loadedShots : [];
 
     $('eventHeadingName').textContent = currentEvent.name;
+    $('eventSummaryName').textContent = currentEvent.name;
+    $('mainSubtitle').textContent = spectator
+      ? 'Spectator view - live event results, read-only.'
+      : 'Submission view - survey trebuchets and log shots.';
+    document.title = `${currentEvent.name} - ${spectator ? 'Spectator' : 'Submitter'} | Splash Distance Tracker`;
+    renderAccess();
+    $('liveStatus').textContent = 'Live updates every 3 seconds.';
 
     clearInlineError();
     renderSetup();
     renderTrebs();
     renderTable();
     renderDiagram();
+    if (currentVisualizerView === 'map') renderMap();
   } catch (err) {
-    showInlineError(`Connection error: ${err.message}.`);
+    if (eventId === currentEventId) {
+      showInlineError(`Connection error: ${err.message}.`);
+      $('liveStatus').textContent = 'Connection failed. Retrying automatically.';
+    }
   }
 }
 
 // Polling function for real-time synchronization across devices
+let polling = false;
 async function pollData() {
   if (!currentEventId) return;
+  if (polling) return;
+  polling = true;
+  const eventId = currentEventId;
+  const requestToken = editTokens.get(eventId);
 
   try {
-    const [trebsRes, shotsRes, setupRes] = await Promise.all([
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets`),
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`),
-      fetch(`/api/events/${encodeURIComponent(currentEventId)}/setup`)
+    if (!currentEvent) {
+      await loadAll();
+      return;
+    }
+    const [trebsRes, shotsRes, setupRes, accessRes] = await Promise.all([
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/trebuchets`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/shots`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/setup`),
+      eventFetch(`/api/events/${encodeURIComponent(eventId)}/access`)
     ]);
+    if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+    if (!trebsRes.ok || !shotsRes.ok || !setupRes.ok || !accessRes.ok) {
+      throw new Error(shotsRes.status === 404 ? 'Event no longer exists.' : 'Failed to refresh event data.');
+    }
 
     if (trebsRes.ok && shotsRes.ok && setupRes.ok) {
       const rawTrebs = await trebsRes.json();
       const rawShots = await shotsRes.json();
       const newSetup = await setupRes.json();
+      const access = await accessRes.json();
+      if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+      const newEditable = access.editable && !spectator;
+      if (passwordProtected !== access.passwordProtected || editable !== newEditable) {
+        passwordProtected = access.passwordProtected;
+        editable = newEditable;
+        renderAccess();
+      }
 
       const newTrebs = Array.isArray(rawTrebs) ? rawTrebs : trebs;
       const newShots = Array.isArray(rawShots) ? rawShots : shots;
@@ -440,15 +756,23 @@ async function pollData() {
       }
       if (setupChanged || trebChanged || shotChanged) {
         renderDiagram();
+        if (currentVisualizerView === 'map') {
+          renderMap();
+        }
       }
-      clearInlineError();
+      $('liveStatus').textContent = 'Live updates every 3 seconds.';
     }
   } catch (err) {
-    // Network hiccup during background poll - don't obscure UI if transient
+    if (eventId === currentEventId) {
+      $('liveStatus').textContent = `Updates paused: ${err.message} Retrying automatically; displayed data may be out of date.`;
+    }
+  } finally {
+    polling = false;
   }
 }
 
 async function saveSetup() {
+  if (!requireEditing()) return;
   if (!currentEventId) return;
   const b = parseFloat($('baseline').value);
   const u = $('unit').value;
@@ -457,11 +781,25 @@ async function saveSetup() {
     return;
   }
 
+  const stALatVal = $('stALat').value.trim();
+  const stALngVal = $('stALng').value.trim();
+  const stBLatVal = $('stBLat').value.trim();
+  const stBLngVal = $('stBLng').value.trim();
+
+  const payload = {
+    baseline: b,
+    unit: u,
+    station_a_lat: stALatVal !== '' ? parseFloat(stALatVal) : null,
+    station_a_lng: stALngVal !== '' ? parseFloat(stALngVal) : null,
+    station_b_lat: stBLatVal !== '' ? parseFloat(stBLatVal) : null,
+    station_b_lng: stBLngVal !== '' ? parseFloat(stBLngVal) : null
+  };
+
   try {
-    const res = await fetch(`/api/events/${encodeURIComponent(currentEventId)}/setup`, {
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/setup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ baseline: b, unit: u })
+      body: JSON.stringify(payload)
     });
     if (!res.ok) {
       const data = await res.json();
@@ -471,22 +809,70 @@ async function saveSetup() {
     clearInlineError();
     renderSetup();
     renderDiagram();
+    // Existing points need fresh geographic coordinates after the station anchors change.
+    await loadAll();
   } catch (err) {
     showInlineError(`Error saving setup: ${err.message}`);
   }
 }
 
+function captureStationGps(station) {
+  if (!requireEditing()) return;
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser or device.');
+    return;
+  }
+  const statusEl = $('setupStatus');
+  statusEl.textContent = `Capturing GPS for Station ${station}...`;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      if (station === 'A') {
+        $('stALat').value = lat;
+        $('stALng').value = lng;
+      } else {
+        $('stBLat').value = lat;
+        $('stBLng').value = lng;
+      }
+      statusEl.textContent = `Captured GPS for Station ${station}: ${lat}, ${lng} (accuracy: ±${Math.round(pos.coords.accuracy)}m). Click "Save setup" or "Save GPS Coordinates" to store.`;
+    },
+    (err) => {
+      statusEl.textContent = `GPS capture failed: ${err.message}`;
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
 function renderSetup() {
+  $('eventSummarySetup').textContent = setup?.baseline
+    ? `Baseline: ${setup.baseline} ${setup.unit} between Stations A and B. Distances below are in ${setup.unit}.`
+    : 'No baseline saved yet.';
   if (setup && setup.baseline) {
-    $('setupStatus').textContent = `Baseline saved: ${setup.baseline} ${setup.unit} between Station A and Station B.`;
+    let gpsNotice = '';
+    if (setup.station_a_lat != null && setup.station_a_lng != null && setup.station_b_lat != null && setup.station_b_lng != null) {
+      gpsNotice = ' • Satellite map active.';
+    }
+    $('setupStatus').textContent = `Baseline saved: ${setup.baseline} ${setup.unit} between Station A and Station B.${gpsNotice}`;
     $('baseline').value = setup.baseline;
     $('unit').value = setup.unit;
+    $('stALat').value = setup.station_a_lat ?? '';
+    $('stALng').value = setup.station_a_lng ?? '';
+    $('stBLat').value = setup.station_b_lat ?? '';
+    $('stBLng').value = setup.station_b_lng ?? '';
   } else {
     $('setupStatus').textContent = 'No baseline saved yet.';
+    $('baseline').value = '';
+    $('unit').value = currentEvent?.unit || 'ft';
+    $('stALat').value = setup?.station_a_lat ?? '';
+    $('stALng').value = setup?.station_a_lng ?? '';
+    $('stBLat').value = setup?.station_b_lat ?? '';
+    $('stBLng').value = setup?.station_b_lng ?? '';
   }
 }
 
 async function addTrebuchet() {
+  if (!requireEditing()) return;
   if (!currentEventId) return;
   const nameInput = $('trebName').value.trim();
   const dist = parseFloat($('trebDist').value);
@@ -498,7 +884,7 @@ async function addTrebuchet() {
   }
 
   try {
-    const res = await fetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets`, {
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: nameInput, dist, angle })
@@ -515,15 +901,17 @@ async function addTrebuchet() {
     $('trebAngle').value = '';
     renderTrebs();
     renderDiagram();
+    if (currentVisualizerView === 'map') renderMap();
   } catch (err) {
     showInlineError(`Error adding trebuchet: ${err.message}`);
   }
 }
 
 async function delTreb(id) {
+  if (!requireEditing()) return;
   if (!currentEventId) return;
   try {
-    const res = await fetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets/${id}`, { method: 'DELETE' });
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.error || 'Failed to delete trebuchet.');
@@ -532,6 +920,7 @@ async function delTreb(id) {
     clearInlineError();
     renderTrebs();
     renderDiagram();
+    if (currentVisualizerView === 'map') renderMap();
   } catch (err) {
     showInlineError(`Error deleting trebuchet: ${err.message}`);
   }
@@ -542,10 +931,10 @@ function renderTrebs() {
   const currentVal = sel.value;
 
   if (!trebs.length) {
-    body.innerHTML = '<tr><td colspan="4" class="empty">No trebuchets added yet — you can still log shots measured from Station A directly.</td></tr>';
+    body.innerHTML = `<tr><td colspan="${editable && !spectator ? 4 : 3}" class="empty">No trebuchets added yet.</td></tr>`;
   } else {
     body.innerHTML = trebs.map(t =>
-      `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.dist}</td><td class="num">${t.angle}°</td><td class="action"><button class="del" onclick="delTreb(${t.id})" aria-label="Delete">✕</button></td></tr>`
+      `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.dist}</td><td class="num">${t.angle}°</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delTreb(${t.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`
     ).join('');
   }
 
@@ -558,6 +947,7 @@ function renderTrebs() {
 }
 
 async function addShot() {
+  if (!requireEditing()) return;
   if (!currentEventId) return;
   if (!setup || !setup.baseline) {
     alert('Save the baseline setup first.');
@@ -576,7 +966,7 @@ async function addShot() {
   const trebId = $('trebSelect').value || null;
 
   try {
-    const res = await fetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`, {
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label, trebId, angA, angB, known })
@@ -599,6 +989,7 @@ async function addShot() {
 
     renderTable();
     renderDiagram();
+    if (currentVisualizerView === 'map') renderMap();
   } catch (err) {
     showInlineError(`Error adding shot: ${err.message}`);
   }
@@ -607,19 +998,20 @@ async function addShot() {
 function renderTable() {
   const body = $('shotBody');
   if (!shots.length) {
-    body.innerHTML = '<tr><td colspan="8" class="empty">No shots logged yet.</td></tr>';
+    body.innerHTML = `<tr><td colspan="${editable && !spectator ? 8 : 7}" class="empty">No shots logged yet.</td></tr>`;
     return;
   }
   body.innerHTML = shots.map(s => {
     const err = s.known ? (100 * Math.abs(s.dist - s.known) / s.known).toFixed(1) + '%' : '—';
-    return `<tr><td>${escapeHtml(s.label)}</td><td>${escapeHtml(s.treb || 'Station A')}</td><td class="num">${s.angA}°</td><td class="num">${s.angB}°</td><td class="num">${s.dist.toFixed(1)}</td><td class="num">${s.check.toFixed(1)}</td><td class="num">${err}</td><td class="action"><button class="del" onclick="delShot(${s.id})" aria-label="Delete">✕</button></td></tr>`;
+    return `<tr><td>${escapeHtml(s.label)}</td><td>${escapeHtml(s.treb || 'Station A')}</td><td class="num">${s.angA}°</td><td class="num">${s.angB}°</td><td class="num">${s.dist.toFixed(1)}</td><td class="num">${s.check.toFixed(1)}</td><td class="num">${err}</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delShot(${s.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`;
   }).join('');
 }
 
 async function delShot(id) {
+  if (!requireEditing()) return;
   if (!currentEventId) return;
   try {
-    const res = await fetch(`/api/events/${encodeURIComponent(currentEventId)}/shots/${id}`, { method: 'DELETE' });
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/shots/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.error || 'Failed to delete shot.');
@@ -628,16 +1020,18 @@ async function delShot(id) {
     clearInlineError();
     renderTable();
     renderDiagram();
+    if (currentVisualizerView === 'map') renderMap();
   } catch (err) {
     showInlineError(`Error deleting shot: ${err.message}`);
   }
 }
 
 async function clearAll() {
+  if (!requireEditing()) return;
   if (!currentEventId) return;
   if (confirm('Clear all logged shots for this event?')) {
     try {
-      const res = await fetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`, { method: 'DELETE' });
+      const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to clear shots.');
@@ -646,6 +1040,7 @@ async function clearAll() {
       clearInlineError();
       renderTable();
       renderDiagram();
+      if (currentVisualizerView === 'map') renderMap();
       $('lastResult').innerHTML = '';
     } catch (err) {
       showInlineError(`Error clearing shots: ${err.message}`);
@@ -741,8 +1136,185 @@ function renderDiagram() {
   `;
 }
 
+let currentVisualizerView = 'map'; // 'schematic' | 'map'
+let leafletMap = null;
+let mapLayerGroup = null;
+
+function switchVisualizerView(mode) {
+  currentVisualizerView = mode;
+  const btnSchematic = $('btnSchematicView');
+  const btnMap = $('btnMapView');
+  const schematicContainer = $('schematicContainer');
+  const mapWrapper = $('mapWrapper');
+  const mapContainer = $('mapContainer');
+
+  if (mode === 'map') {
+    btnSchematic.classList.remove('active');
+    btnMap.classList.add('active');
+    schematicContainer.style.display = 'none';
+    mapWrapper.style.display = 'block';
+    mapContainer.style.display = 'block';
+    initOrUpdateMap();
+  } else {
+    btnMap.classList.remove('active');
+    btnSchematic.classList.add('active');
+    mapWrapper.style.display = 'none';
+    schematicContainer.style.display = 'block';
+    renderDiagram();
+  }
+}
+
+function initOrUpdateMap() {
+  if (typeof L === 'undefined') {
+    $('mapNotice').innerHTML = '<span class="warn">Leaflet map library could not be loaded. Please check your internet connection.</span>';
+    return;
+  }
+
+  const mapEl = $('mapContainer');
+  const hasGps = setup &&
+    setup.station_a_lat != null && setup.station_a_lng != null &&
+    setup.station_b_lat != null && setup.station_b_lng != null;
+
+  if (!leafletMap) {
+    leafletMap = L.map(mapEl, {
+      attributionControl: true,
+      maxZoom: 19
+    });
+
+    // High-resolution Esri World Imagery (satellite)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics',
+      maxZoom: 19
+    }).addTo(leafletMap);
+
+    mapLayerGroup = L.layerGroup().addTo(leafletMap);
+  }
+
+  // Force size recalculation if container was previously hidden
+  setTimeout(() => {
+    if (leafletMap) leafletMap.invalidateSize();
+  }, 100);
+
+  renderMap();
+}
+
+function renderMap() {
+  if (!leafletMap || !mapLayerGroup) return;
+  mapLayerGroup.clearLayers();
+
+  const hasGps = setup &&
+    setup.station_a_lat != null && setup.station_a_lng != null &&
+    setup.station_b_lat != null && setup.station_b_lng != null;
+
+  const notice = $('mapNotice');
+  if (!hasGps) {
+    notice.textContent = editable && !spectator
+      ? 'Station GPS coordinates not configured yet. Enter or capture GPS in the Setup card to enable the satellite overlay.'
+      : 'Station GPS coordinates not configured yet. The satellite overlay will be available when the event editor adds them.';
+    leafletMap.setView([39.0, -98.0], 4);
+    return;
+  }
+
+  notice.innerHTML = 'Showing satellite overlay using Station A &amp; B anchors. Distance measurements remain authoritatively determined by optical triangulation.';
+
+  const bounds = L.latLngBounds();
+
+  // Station A
+  const posA = [setup.station_a_lat, setup.station_a_lng];
+  bounds.extend(posA);
+  const markerA = createMapMarker(posA, 'station', 'Station A',
+    '<b>Station A (Origin)</b><br>Lat: ' + setup.station_a_lat + '<br>Lng: ' + setup.station_a_lng, 'A');
+  mapLayerGroup.addLayer(markerA);
+
+  // Station B
+  const posB = [setup.station_b_lat, setup.station_b_lng];
+  bounds.extend(posB);
+  const markerB = createMapMarker(posB, 'station', 'Station B',
+    '<b>Station B</b><br>Lat: ' + setup.station_b_lat + '<br>Lng: ' + setup.station_b_lng, 'B');
+  mapLayerGroup.addLayer(markerB);
+
+  // Baseline line connecting A and B
+  const baselineLine = L.polyline([posA, posB], {
+    color: '#4a95a0',
+    weight: 2,
+    dashArray: '4, 4'
+  });
+  mapLayerGroup.addLayer(baselineLine);
+
+  // Plot trebuchets if they have geo coordinates
+  trebs.forEach(t => {
+    if (t.geo && t.geo.lat != null && t.geo.lng != null) {
+      const posT = [t.geo.lat, t.geo.lng];
+      bounds.extend(posT);
+      const markerT = createMapMarker(posT, 'trebuchet', t.name,
+        `<b>Trebuchet: ${escapeHtml(t.name)}</b><br>Dist from A: ${t.dist} ${setup.unit || ''}<br>Angle: ${t.angle}°`);
+      mapLayerGroup.addLayer(markerT);
+    }
+  });
+
+  // Plot shots with splashGeo
+  shots.forEach(s => {
+    if (s.splashGeo && s.splashGeo.lat != null && s.splashGeo.lng != null) {
+      const posS = [s.splashGeo.lat, s.splashGeo.lng];
+      bounds.extend(posS);
+      const markerS = createMapMarker(posS, 'splash', s.label,
+        `<b>${escapeHtml(s.label)} (${escapeHtml(s.treb || 'Station A')})</b><br>Distance: ${s.dist.toFixed(1)} ${setup.unit || ''}<br>Check: ${s.check.toFixed(1)} ${setup.unit || ''}`);
+      mapLayerGroup.addLayer(markerS);
+
+      // Trajectory line from firing origin (treb or Station A) to splash
+      let originPos = posA;
+      if (s.trebGeo && s.trebGeo.lat != null && s.trebGeo.lng != null) {
+        originPos = [s.trebGeo.lat, s.trebGeo.lng];
+      }
+      const traj = L.polyline([originPos, posS], {
+        color: '#c9832f',
+        weight: 1.5,
+        opacity: 0.7
+      });
+      mapLayerGroup.addLayer(traj);
+    }
+  });
+
+  if (bounds.isValid()) {
+    leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
+  }
+}
+
+function createMapMarker(position, kind, label, popup, letter = '') {
+  const symbols = {
+    station: `<circle cx="16" cy="16" r="13" fill="#2f6f7a" stroke="white" stroke-width="2"/><text x="16" y="21" text-anchor="middle" fill="white" font-family="Trebuchet MS,sans-serif" font-size="15" font-weight="bold">${letter}</text>`,
+    trebuchet: '<rect x="2" y="2" width="28" height="28" rx="4" fill="#c9832f" stroke="white" stroke-width="2"/><path d="M8 25h16M10 24l6-12 6 12M7 9l18 7M8 9v8" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>',
+    splash: '<circle cx="16" cy="16" r="13" fill="#173a52" stroke="white" stroke-width="2"/><path d="M16 6c-2 4-5 7-5 10a5 5 0 0010 0c0-3-3-6-5-10zM7 24q9 5 18 0" fill="none" stroke="white" stroke-width="2"/>'
+  };
+  return L.marker(position, {
+    title: label,
+    alt: label,
+    icon: L.divIcon({
+      className: `event-map-marker event-map-${kind}`,
+      html: `<svg viewBox="0 0 32 32" aria-hidden="true">${symbols[kind]}</svg>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+      popupAnchor: [0, -16]
+    })
+  }).bindPopup(popup).bindTooltip(escapeHtml(label), {
+    permanent: true,
+    direction: 'right',
+    offset: [16, 0],
+    className: 'event-map-label'
+  });
+}
+
 // Handle browser popstate navigation
 window.addEventListener('popstate', (e) => {
+  spectator = /\/spectator\/?$/.test(window.location.pathname);
+  editable = false;
+  currentEvent = null;
+  setup = null;
+  trebs = [];
+  shots = [];
+  $('lastResult').innerHTML = '';
+  $('csvBox').style.display = 'none';
+  renderAccess();
   const evId = detectEventId();
   if (evId) {
     currentEventId = evId;

@@ -289,3 +289,95 @@ test('Events API and direct event URL routing', async () => {
   assert.strictEqual(res.status, 404);
 });
 
+test('GPS station setup and geo-enrichment on trebuchets and shots', async () => {
+  // Create an event with GPS coordinates
+  let res = await fetch(`${baseUrl}/api/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Lake GPS Event',
+      baseline: 50,
+      unit: 'm',
+      stationALat: 42.123456,
+      stationALng: -71.654321,
+      stationBLat: 42.123906,
+      stationBLng: -71.654321
+    })
+  });
+  assert.strictEqual(res.status, 201);
+  const event = await res.json();
+  assert.strictEqual(event.stationALat, 42.123456);
+  assert.strictEqual(event.stationALng, -71.654321);
+  assert.strictEqual(event.stationBLat, 42.123906);
+  assert.strictEqual(event.stationBLng, -71.654321);
+
+  // Verify setup endpoint returns GPS fields and calculated gpsDistance
+  res = await fetch(`${baseUrl}/api/events/${event.id}/setup`);
+  assert.strictEqual(res.status, 200);
+  let setup = await res.json();
+  assert.strictEqual(setup.stationALat, 42.123456);
+  assert.strictEqual(setup.stationALng, -71.654321);
+  assert.strictEqual(setup.stationBLat, 42.123906);
+  assert.strictEqual(setup.stationBLng, -71.654321);
+  assert.ok(setup.gpsDistance > 0);
+
+  // Update setup via POST /api/events/:id/setup
+  res = await fetch(`${baseUrl}/api/events/${event.id}/setup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      baseline: 50,
+      unit: 'm',
+      stationALat: 42.123400,
+      stationALng: -71.654300,
+      stationBLat: 42.123850,
+      stationBLng: -71.654300
+    })
+  });
+  assert.strictEqual(res.status, 200);
+  setup = await res.json();
+  assert.strictEqual(setup.stationALat, 42.123400);
+
+  // Add a trebuchet - verify geo property is enriched
+  res = await fetch(`${baseUrl}/api/events/${event.id}/trebuchets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'GPS Treb', dist: 15, angle: 30 })
+  });
+  assert.strictEqual(res.status, 201);
+  const treb = await res.json();
+  assert.ok(treb.geo);
+  assert.ok(typeof treb.geo.lat === 'number');
+  assert.ok(typeof treb.geo.lng === 'number');
+
+  // List trebuchets - verify geo enrichment persists
+  res = await fetch(`${baseUrl}/api/events/${event.id}/trebuchets`);
+  const trebs = await res.json();
+  assert.strictEqual(trebs.length, 1);
+  assert.ok(trebs[0].geo);
+
+  // Add a shot - verify geo property is enriched
+  res = await fetch(`${baseUrl}/api/events/${event.id}/shots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trebId: treb.id, angA: 45, angB: 45, label: 'GPS Shot' })
+  });
+  assert.strictEqual(res.status, 201);
+  const shot = await res.json();
+  assert.ok(shot.geo);
+  assert.ok(typeof shot.geo.splashLat === 'number');
+  assert.ok(typeof shot.geo.splashLng === 'number');
+  assert.ok(typeof shot.geo.trebLat === 'number');
+  assert.ok(typeof shot.geo.trebLng === 'number');
+
+  // List shots - verify geo enrichment persists
+  res = await fetch(`${baseUrl}/api/events/${event.id}/shots`);
+  const shots = await res.json();
+  assert.strictEqual(shots.length, 1);
+  assert.ok(shots[0].geo);
+
+  // Clean up
+  await fetch(`${baseUrl}/api/events/${event.id}`, { method: 'DELETE' });
+});
+
+

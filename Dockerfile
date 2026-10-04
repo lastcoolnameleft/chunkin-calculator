@@ -10,6 +10,7 @@ RUN npm ci --omit=dev
 
 COPY src/ ./src/
 COPY public/ ./public/
+COPY docs/ ./docs/
 RUN mkdir -p data
 
 ENV PORT=3000

@@ -80,3 +80,69 @@ test('calculateShot with negative angle trebuchet behind baseline', () => {
   assert.ok(Math.abs(shot.dist - 60) < 1e-5);
 });
 
+test('calculateBearing calculates correct initial compass azimuth', () => {
+  const { calculateBearing } = require('../src/math.js');
+  // Due North: (0, 0) -> (10, 0) => bearing 0°
+  const northBearing = calculateBearing(0, 0, 10, 0);
+  assert.ok(Math.abs(northBearing - 0) < 1e-4);
+
+  // Due East: (0, 0) -> (0, 10) => bearing 90°
+  const eastBearing = calculateBearing(0, 0, 0, 10);
+  assert.ok(Math.abs(eastBearing - 90) < 1e-4);
+
+  // Due South: (10, 0) -> (0, 0) => bearing 180°
+  const southBearing = calculateBearing(10, 0, 0, 0);
+  assert.ok(Math.abs(southBearing - 180) < 1e-4);
+
+  // Due West: (0, 10) -> (0, 0) => bearing 270°
+  const westBearing = calculateBearing(0, 0, 0, -10);
+  assert.ok(Math.abs(westBearing - 270) < 1e-4);
+});
+
+test('calculateHaversineDistance calculates great circle distance', () => {
+  const { calculateHaversineDistance } = require('../src/math.js');
+  // Distance between poles: ~20015 km in meters
+  const halfCircumferenceMeters = calculateHaversineDistance(90, 0, -90, 0, 'm');
+  assert.ok(Math.abs(halfCircumferenceMeters - 20015086) < 1000);
+
+  // Unit conversion to feet: 1 m ≈ 3.28084 ft
+  const halfCircumferenceFeet = calculateHaversineDistance(90, 0, -90, 0, 'ft');
+  assert.ok(Math.abs(halfCircumferenceFeet - halfCircumferenceMeters * 3.28084) < 100);
+});
+
+test('localXYToLatLng transforms local Cartesian coordinates to geodetic lat/lng', () => {
+  const { localXYToLatLng, calculateHaversineDistance, calculateBearing } = require('../src/math.js');
+  // Station A at (40.0, -80.0)
+  // Station B is due North at (40.001, -80.0) -> baseline is oriented at bearing 0°
+  const latA = 40.0;
+  const lngA = -80.0;
+  const latB = 40.001;
+  const lngB = -80.0;
+
+  // Station A is (0, 0), Station B is along the positive X-axis
+  // Test point on X-axis (towards Station B)
+  const bearingAB = calculateBearing(latA, lngA, latB, lngB);
+  const distAB = calculateHaversineDistance(latA, lngA, latB, lngB, 'm');
+  const ptB = localXYToLatLng(distAB, 0, latA, lngA, bearingAB, 'm');
+  assert.ok(ptB);
+  assert.ok(Math.abs(ptB.lat - latB) < 1e-5);
+  assert.ok(Math.abs(ptB.lng - lngB) < 1e-5);
+
+  // Test point at (0, 0) maps to Station A
+  const ptA = localXYToLatLng(0, 0, latA, lngA, bearingAB, 'm');
+  assert.ok(ptA);
+  assert.ok(Math.abs(ptA.lat - latA) < 1e-6);
+  assert.ok(Math.abs(ptA.lng - lngA) < 1e-6);
+
+  // Test point with positive Y (into the water, 90° counter-clockwise from baseline)
+  // Baseline bearing is 0° (North), so 90° CCW is 270° (West)
+  const ptWest = localXYToLatLng(0, 100, latA, lngA, bearingAB, 'm');
+  assert.ok(ptWest);
+  // Point should have approximately same latitude and slightly lower (more negative) longitude
+  assert.ok(Math.abs(ptWest.lat - latA) < 1e-4);
+  assert.ok(ptWest.lng < lngA);
+  const bearingToWest = calculateBearing(latA, lngA, ptWest.lat, ptWest.lng);
+  assert.ok(Math.abs(bearingToWest - 270) < 1e-2);
+});
+
+

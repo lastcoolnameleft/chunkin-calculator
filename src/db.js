@@ -26,6 +26,10 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       baseline REAL NOT NULL DEFAULT 0,
       unit TEXT NOT NULL DEFAULT 'ft' CHECK (unit IN ('ft', 'm')),
       is_configured INTEGER NOT NULL DEFAULT 0,
+      station_a_lat REAL,
+      station_a_lng REAL,
+      station_b_lat REAL,
+      station_b_lng REAL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -91,6 +95,24 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       ensureDefaultEvent();
       db.prepare(`ALTER TABLE shots ADD COLUMN event_id TEXT NOT NULL DEFAULT '${DEFAULT_EVENT_ID}'`).run();
     }
+
+    // Migrate events table if GPS coordinate columns are missing
+    const eventColumns = db.prepare('PRAGMA table_info(events)').all();
+    if (!eventColumns.some(c => c.name === 'password_hash')) {
+      db.prepare('ALTER TABLE events ADD COLUMN password_hash TEXT').run();
+    }
+    if (!eventColumns.some(c => c.name === 'station_a_lat')) {
+      db.prepare('ALTER TABLE events ADD COLUMN station_a_lat REAL').run();
+    }
+    if (!eventColumns.some(c => c.name === 'station_a_lng')) {
+      db.prepare('ALTER TABLE events ADD COLUMN station_a_lng REAL').run();
+    }
+    if (!eventColumns.some(c => c.name === 'station_b_lat')) {
+      db.prepare('ALTER TABLE events ADD COLUMN station_b_lat REAL').run();
+    }
+    if (!eventColumns.some(c => c.name === 'station_b_lng')) {
+      db.prepare('ALTER TABLE events ADD COLUMN station_b_lng REAL').run();
+    }
   }
 
   runMigrations();
@@ -98,18 +120,26 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
   return {
     raw: db,
 
+    getEventPasswordHash(id) {
+      return db.prepare('SELECT password_hash FROM events WHERE id = ?').get(id)?.password_hash || null;
+    },
+
+    setEventPasswordHash(id, hash) {
+      db.prepare('UPDATE events SET password_hash = ? WHERE id = ?').run(hash, id);
+    },
+
     // Events
     getEvents() {
-      const stmt = db.prepare('SELECT id, name, baseline, unit, is_configured, created_at, updated_at FROM events ORDER BY created_at DESC');
+      const stmt = db.prepare('SELECT id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at FROM events ORDER BY created_at DESC');
       return stmt.all();
     },
 
     getEventById(id) {
-      const stmt = db.prepare('SELECT id, name, baseline, unit, is_configured, created_at, updated_at FROM events WHERE id = ?');
+      const stmt = db.prepare('SELECT id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at FROM events WHERE id = ?');
       return stmt.get(id) || null;
     },
 
-    createEvent({ id, name, baseline = 0, unit = 'ft' } = {}) {
+    createEvent({ id, name, baseline = 0, unit = 'ft', station_a_lat = null, station_a_lng = null, station_b_lat = null, station_b_lng = null } = {}) {
       if (typeof arguments[0] === 'string') {
         // Support signature createEvent(name, baseline, unit)
         const evName = arguments[0];
@@ -120,10 +150,20 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       }
       const isConfigured = baseline > 0 ? 1 : 0;
       const stmt = db.prepare(`
-        INSERT INTO events (id, name, baseline, unit, is_configured, created_at, updated_at)
-        VALUES (@id, @name, @baseline, @unit, @isConfigured, datetime('now'), datetime('now'))
+        INSERT INTO events (id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at)
+        VALUES (@id, @name, @baseline, @unit, @isConfigured, @station_a_lat, @station_a_lng, @station_b_lat, @station_b_lng, datetime('now'), datetime('now'))
       `);
-      stmt.run({ id, name, baseline: baseline || 0, unit: unit || 'ft', isConfigured });
+      stmt.run({
+        id,
+        name,
+        baseline: baseline || 0,
+        unit: unit || 'ft',
+        isConfigured,
+        station_a_lat: station_a_lat !== undefined ? station_a_lat : null,
+        station_a_lng: station_a_lng !== undefined ? station_a_lng : null,
+        station_b_lat: station_b_lat !== undefined ? station_b_lat : null,
+        station_b_lng: station_b_lng !== undefined ? station_b_lng : null
+      });
       return this.getEventById(id);
     },
 
@@ -137,16 +177,20 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
     getSetup(eventId = DEFAULT_EVENT_ID) {
       const ev = this.getEventById(eventId);
       if (!ev) return null;
-      if (ev.baseline === 0 && !ev.is_configured) {
+      if (ev.baseline === 0 && !ev.is_configured && ev.station_a_lat === null) {
         return null;
       }
       return {
         baseline: ev.baseline,
-        unit: ev.unit
+        unit: ev.unit,
+        station_a_lat: ev.station_a_lat,
+        station_a_lng: ev.station_a_lng,
+        station_b_lat: ev.station_b_lat,
+        station_b_lng: ev.station_b_lng
       };
     },
 
-    saveSetup(eventId, baseline, unit) {
+    saveSetup(eventId, baseline, unit, gps = {}) {
       // Support legacy signature saveSetup(baseline, unit)
       if (typeof baseline === 'string' && (unit === undefined || unit === null)) {
         unit = baseline;
@@ -158,12 +202,37 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       if (eventId === DEFAULT_EVENT_ID) {
         ensureDefaultEvent();
       }
+
+      const {
+        station_a_lat = null,
+        station_a_lng = null,
+        station_b_lat = null,
+        station_b_lng = null
+      } = gps || {};
+
+      const current = this.getEventById(eventId);
+      const new_a_lat = station_a_lat !== undefined ? station_a_lat : (current ? current.station_a_lat : null);
+      const new_a_lng = station_a_lng !== undefined ? station_a_lng : (current ? current.station_a_lng : null);
+      const new_b_lat = station_b_lat !== undefined ? station_b_lat : (current ? current.station_b_lat : null);
+      const new_b_lng = station_b_lng !== undefined ? station_b_lng : (current ? current.station_b_lng : null);
+
       const stmt = db.prepare(`
         UPDATE events
-        SET baseline = @baseline, unit = @unit, is_configured = 1, updated_at = datetime('now')
+        SET baseline = @baseline, unit = @unit, is_configured = 1,
+            station_a_lat = @station_a_lat, station_a_lng = @station_a_lng,
+            station_b_lat = @station_b_lat, station_b_lng = @station_b_lng,
+            updated_at = datetime('now')
         WHERE id = @id
       `);
-      stmt.run({ id: eventId, baseline, unit });
+      stmt.run({
+        id: eventId,
+        baseline,
+        unit,
+        station_a_lat: new_a_lat,
+        station_a_lng: new_a_lng,
+        station_b_lat: new_b_lat,
+        station_b_lng: new_b_lng
+      });
       return this.getSetup(eventId);
     },
 
