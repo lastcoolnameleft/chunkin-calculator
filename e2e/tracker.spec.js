@@ -65,12 +65,13 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await expect(page.locator('.event-map-marker')).toHaveCount(4);
   await expect(spectator.locator('.event-map-station')).toHaveCount(2);
   await expect(spectator.locator('.event-map-trebuchet')).toHaveCount(1);
-  await expect(spectator.locator('.event-map-splash')).toHaveCount(1);
+  await expect(spectator.locator('.event-map-impact')).toHaveCount(1);
+  await expect(spectator.locator('.event-map-impact [data-icon="pumpkin"]')).toHaveCount(1);
   await expect(spectator.locator('.event-map-label').filter({ hasText: 'Live Trebuchet' })).toBeVisible();
   await expect(spectator.locator('.event-map-label').filter({ hasText: 'Live Shot' })).toBeVisible();
   await expect(spectator.locator('.event-map-station').first()).toBeInViewport();
   await expect(spectator.locator('.event-map-trebuchet')).toBeInViewport();
-  await expect(spectator.locator('.event-map-splash')).toBeInViewport();
+  await expect(spectator.locator('.event-map-impact')).toBeInViewport();
   await expect(spectator.locator('.leaflet-overlay-pane svg')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await spectator.locator('.event-map-trebuchet').click();
   await expect(spectator.locator('.leaflet-popup')).toContainText('Dist from A: 20 m');
@@ -113,6 +114,16 @@ test('protected editor unlocks with its shared password, locks again, and can re
   await expect(page.locator('#setupCard')).toBeVisible();
   await expect(page.locator('#unlockCard')).toBeHidden();
 
+  await page.reload();
+  await expect(page.locator('#setupCard')).toBeVisible();
+  await expect(page.locator('#unlockCard')).toBeHidden();
+  const anotherTab = await page.context().newPage();
+  await anotherTab.goto(`/event/${event.id}`);
+  await expect(anotherTab.locator('#setupCard')).toBeVisible();
+  await anotherTab.goto(`/event/${event.id}/spectator`);
+  await expect(anotherTab.locator('.editor-only:visible')).toHaveCount(0);
+  await anotherTab.close();
+
   await page.getByText('Editing access', { exact: true }).click();
   await page.getByRole('button', { name: 'Lock editor', exact: true }).click();
   await expect(page.locator('#unlockCard')).toBeVisible();
@@ -142,6 +153,8 @@ test('creation accepts optional passwords and automatically unlocks the new prot
   await page.getByRole('button', { name: 'Create Event', exact: true }).click();
   await expect(page.locator('#setupCard')).toBeVisible();
   await expect(page.locator('#accessNotice')).toContainText('password-protected');
+  await page.reload();
+  await expect(page.locator('#setupCard')).toBeVisible();
   await page.getByRole('button', { name: 'Switch Event', exact: true }).click();
   await page.locator('#newEventName').fill('Created Without Password');
   await page.getByRole('button', { name: 'Create Event', exact: true }).click();

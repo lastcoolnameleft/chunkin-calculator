@@ -33,11 +33,11 @@ function enrichWithGeo(point, event, unit) {
     point.treb_geo = geo;
     point.trebGeo = geo;
   }
-  // If point has px, py (e.g. shot splash location)
+  // If point has px, py (e.g. shot impact location)
   if (typeof point.px === 'number' && typeof point.py === 'number') {
     const geo = localXYToLatLng(point.px, point.py, event.station_a_lat, event.station_a_lng, bearingAB, unit);
-    point.splash_geo = geo;
-    point.splashGeo = geo;
+    point.impact_geo = geo;
+    point.impactGeo = geo;
   }
   // If point has dist and angle (e.g. trebuchet definition)
   if (typeof point.dist === 'number' && typeof point.angle === 'number') {
@@ -63,6 +63,7 @@ function createApp(db) {
   app.post('/api/events/:eventId/session', (req, res, next) => {
     auth.login(req, res).catch(next);
   });
+  app.delete('/api/events/:eventId/session', auth.logout);
 
   app.get('/api/events/:eventId/access', (req, res) => {
     const event = db.getEventById(req.params.eventId);
@@ -650,7 +651,7 @@ if (require.main === module) {
   const app = createApp(db);
 
   app.listen(PORT, () => {
-    console.log(`Splash Distance Tracker running at http://localhost:${PORT}`);
+    console.log(`Impact Distance Tracker running at http://localhost:${PORT}`);
   });
 }
 

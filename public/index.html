@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
-<title>Splash Distance Tracker</title>
+<title>Impact Distance Tracker</title>
 <script>
 document.documentElement.dataset.spectator = String(/\/spectator\/?$/.test(location.pathname));
 document.documentElement.dataset.editable = 'false';
@@ -14,7 +14,7 @@ document.documentElement.dataset.editable = 'false';
 <style>
 :root{
   --ink:#0f2436; --paper:#f2ede2; --line:#c9bfa8;
-  --deep:#173a52; --lake:#2f6f7a; --lake2:#4a95a0; --amber:#c9832f;
+  --deep:#173a52; --accent:#2f6f7a; --accent2:#4a95a0; --amber:#c9832f;
   --danger:#a3401f; --card:#fbf8f0;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
@@ -23,13 +23,13 @@ document.documentElement.dataset.editable = 'false';
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --ink:#e8e2d2; --paper:#101c24; --line:#33475a;
-    --deep:#bcd6e6; --lake:#7fc4cf; --lake2:#4a95a0; --amber:#e2a355;
+    --deep:#bcd6e6; --accent:#7fc4cf; --accent2:#4a95a0; --amber:#e2a355;
     --card:#152530;
   }
 }
 :root[data-theme="dark"]{
   --ink:#e8e2d2; --paper:#101c24; --line:#33475a;
-  --deep:#bcd6e6; --lake:#7fc4cf; --lake2:#4a95a0; --amber:#e2a355;
+  --deep:#bcd6e6; --accent:#7fc4cf; --accent2:#4a95a0; --amber:#e2a355;
   --card:#152530;
 }
 *{box-sizing:border-box}
@@ -45,7 +45,10 @@ h1{
   font-size:1.5rem; margin:0 0 4px; font-weight:600; letter-spacing:.2px;
   font-family:'Trebuchet MS',Georgia,serif;
 }
-.sub{color:var(--lake); font-size:.92rem; margin:0 0 24px; max-width:60ch; line-height:1.5}
+.sub{color:var(--accent); font-size:.92rem; margin:0 0 24px; max-width:60ch; line-height:1.5}
+.wrap a,.wrap a:visited{color:var(--accent)}
+.wrap a:hover{color:var(--ink)}
+.wrap a:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
 .wrap{max-width:760px; margin:0 auto}
 .card{
   background:var(--card); border:1px solid var(--line); border-radius:3px;
@@ -54,16 +57,16 @@ h1{
 .card h2{font-size:1.02rem; margin:0 0 12px; color:var(--deep); font-weight:600}
 .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end}
 .field{display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px}
-.field label{font-size:.78rem; color:var(--lake); font-family:'Trebuchet MS',sans-serif}
+.field label{font-size:.78rem; color:var(--accent); font-family:'Trebuchet MS',sans-serif}
 .angle-label{display:flex; align-items:center; justify-content:space-between; gap:6px}
-button.angle-help{background:transparent; color:var(--lake); border:1px solid var(--lake2); border-radius:50%; width:24px; height:24px; padding:0; flex-shrink:0; font-size:.85rem}
-.angle-explanation{font-size:.8rem; line-height:1.5; color:var(--lake); margin:4px 0 0}
+button.angle-help{background:transparent; color:var(--accent); border:1px solid var(--accent2); border-radius:50%; width:24px; height:24px; padding:0; flex-shrink:0; font-size:.85rem}
+.angle-explanation{font-size:.85rem; line-height:1.5; color:var(--ink); background:var(--card); border:1px solid var(--accent2); border-radius:3px; padding:14px 16px; margin:0; inset:auto; width:340px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 24px); overflow-y:auto; box-shadow:0 4px 18px rgba(0,0,0,.25)}
 [hidden]{display:none!important}
 input,select{
   font:inherit; padding:8px 9px; border:1px solid var(--line); border-radius:2px;
   background:var(--paper); color:var(--ink); font-size:.95rem; width:100%;
 }
-input:focus,select:focus,button:focus{outline:2px solid var(--lake2); outline-offset:1px}
+input:focus,select:focus,button:focus{outline:2px solid var(--accent2); outline-offset:1px}
 button{
   font:inherit; background:var(--deep); color:var(--paper); border:none;
   padding:9px 16px; border-radius:2px; cursor:pointer; font-size:.9rem;
@@ -71,12 +74,12 @@ button{
 }
 button.secondary{background:transparent; color:var(--deep); border:1px solid var(--line)}
 button:hover{opacity:.88}
-.setup-status{font-size:.85rem; color:var(--lake); margin-top:8px}
+.setup-status{font-size:.85rem; color:var(--accent); margin-top:8px}
 .result{
   font-size:2.1rem; color:var(--amber); font-weight:700; margin:4px 0;
   font-family:'Trebuchet MS',sans-serif;
 }
-.result-unit{font-size:1rem; color:var(--lake)}
+.result-unit{font-size:1rem; color:var(--accent)}
 .warn{color:var(--danger); font-size:.85rem; margin-top:6px}
 .error-banner{
   color:var(--danger); background:rgba(163,64,31,0.08); border:1px solid var(--danger);
@@ -84,14 +87,14 @@ button:hover{opacity:.88}
   display:none; line-height:1.4;
 }
 .share-bar{
-  background:var(--card); border:1px dashed var(--lake2); border-radius:3px;
+  background:var(--card); border:1px dashed var(--accent2); border-radius:3px;
   padding:12px 16px; margin-bottom:18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
 }
-.share-bar span{font-family:'Trebuchet MS',sans-serif; font-size:.85rem; color:var(--lake); font-weight:600}
+.share-bar span{font-family:'Trebuchet MS',sans-serif; font-size:.85rem; color:var(--accent); font-weight:600}
 .share-bar input{flex:1; min-width:200px; font-family:monospace; font-size:.82rem; padding:6px 8px; background:var(--paper)}
 table{width:100%; border-collapse:collapse; font-size:.85rem; margin-top:6px}
 th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--line)}
-th{color:var(--lake); font-weight:600; font-family:'Trebuchet MS',sans-serif; font-size:.75rem; text-transform:none}
+th{color:var(--accent); font-weight:600; font-family:'Trebuchet MS',sans-serif; font-size:.75rem; text-transform:none}
 th.num,td.num{text-align:right; font-variant-numeric:tabular-nums}
 th.action,td.action{text-align:center; width:36px; padding-left:0; padding-right:4px}
 .del{background:none; border:none; color:var(--danger); cursor:pointer; padding:2px 6px; font-size:1rem}
@@ -101,16 +104,16 @@ th.action,td.action{text-align:center; width:36px; padding-left:0; padding-right
 .event-map-label{font-family:'Trebuchet MS',sans-serif; font-weight:600}
 .scroll{overflow-x:auto}
 textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; padding:8px; border:1px solid var(--line); border-radius:2px; background:var(--paper); color:var(--ink)}
-.tiny{font-size:.78rem; color:var(--lake); margin-top:8px; line-height:1.5}
-.empty{color:var(--lake); font-size:.88rem; padding:8px 0}
+.tiny{font-size:.78rem; color:var(--accent); margin-top:8px; line-height:1.5}
+.empty{color:var(--accent); font-size:.88rem; padding:8px 0}
 .event-item{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line)}
 .event-item:last-child{border-bottom:none}
 .view-toggle-btn{background:transparent; color:var(--deep); border:1px solid var(--line); padding:5px 12px; font-size:.82rem; font-family:'Trebuchet MS',sans-serif; cursor:pointer;}
 .view-toggle-btn.active{background:var(--deep); color:var(--paper); border-color:var(--deep);}
-.gps-btn{background:transparent; color:var(--lake); border:1px solid var(--lake2); padding:5px 9px; font-size:.78rem; border-radius:2px; cursor:pointer; white-space:nowrap; margin-top:4px;}
-.gps-btn:hover{background:var(--lake); color:var(--paper);}
+.gps-btn{background:transparent; color:var(--accent); border:1px solid var(--accent2); padding:5px 9px; font-size:.78rem; border-radius:2px; cursor:pointer; white-space:nowrap; margin-top:4px;}
+.gps-btn:hover{background:var(--accent); color:var(--paper);}
 #mapContainer{width:100%; height:380px; border:1px solid var(--line); border-radius:2px; display:none; background:#1c2d37;}
-.map-legend{margin-top:8px; display:flex; gap:16px; font-size:.75rem; color:var(--lake); flex-wrap:wrap;}
+.map-legend{margin-top:8px; display:flex; gap:16px; font-size:.75rem; color:var(--accent); flex-wrap:wrap;}
 .map-legend span{display:inline-flex; align-items:center; gap:4px;}
 .dot-indicator{width:10px; height:10px; border-radius:50%; display:inline-block;}
 </style>
@@ -118,12 +121,12 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
 <body>
 <div class="wrap">
   <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
-    <h1>Splash Distance Tracker</h1>
+    <h1>Impact Distance Tracker</h1>
     <div id="switchEventContainer" class="submitter-only" style="display:none;">
       <button class="secondary" style="padding:4px 10px; font-size:.8rem;" onclick="showEventPicker()">Switch Event</button>
     </div>
   </div>
-  <p class="sub" id="mainSubtitle">Triangulate trebuchet landing distance from two shore stations — spotters read one angle each, no math required on their end.</p>
+  <p class="sub" id="mainSubtitle">Triangulate trebuchet landing distance from two observation stations — spotters read one angle each, no math required on their end.</p>
   <p class="tiny"><a href="/how-it-works/" target="_blank" rel="noopener">How this works: a plain-language guide and the math</a></p>
 
   <div id="globalError" class="error-banner"></div>
@@ -214,7 +217,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
 
       <!-- Optional Station GPS Coordinates for Satellite Map Overlay -->
       <details style="margin-top:14px; border:1px dashed var(--line); border-radius:3px; padding:10px 14px; background:var(--card);">
-        <summary style="font-family:'Trebuchet MS',sans-serif; font-size:.85rem; font-weight:600; color:var(--lake); cursor:pointer;">
+        <summary style="font-family:'Trebuchet MS',sans-serif; font-size:.85rem; font-weight:600; color:var(--accent); cursor:pointer;">
           Optional: Satellite Map Overlay (GPS Coordinates)
         </summary>
         <p class="tiny" style="margin-top:6px; margin-bottom:12px;">
@@ -244,12 +247,12 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       </details>
 
       <div class="setup-status" id="setupStatus">No baseline saved yet.</div>
-      <p class="tiny">Stations A and B just need a clear view of the whole lake — one pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
+      <p class="tiny">Stations A and B need a clear view of the entire target area. One pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
     </div>
 
     <div class="card" id="trebCard">
       <h2>Trebuchets</h2>
-      <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the lake, negative angles down to -180° sweep behind the baseline).</p>
+      <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the target area, negative angles down to -180° sweep behind the baseline).</p>
       <div class="row editor-only">
         <div class="field"><label for="trebName">Name</label><input type="text" id="trebName" placeholder="Trebuchet 1"></div>
         <div class="field"><label for="trebDist">Distance from Station A</label><input type="number" id="trebDist" step="0.1" min="0"></div>
@@ -259,7 +262,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
             <button type="button" class="angle-help" aria-label="Help with trebuchet survey angle" aria-expanded="false" aria-controls="trebAngleHelp" onclick="toggleAngleHelp(this)">?</button>
           </div>
           <input type="number" id="trebAngle" step="0.1" min="-180" max="180" aria-describedby="trebAngleHelp">
-          <p class="angle-explanation" id="trebAngleHelp" hidden>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>trebuchet</strong>. Enter the angle between those two sight lines. Angles into the lake are positive; angles behind the A–B baseline are negative (down to -180°). This is the trebuchet's position angle, not its launch angle.</p>
+          <p class="angle-explanation" id="trebAngleHelp" popover>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>trebuchet</strong>. Enter the angle between those two sight lines. Angles into the target area are positive; angles behind the A–B baseline are negative (down to -180°). This is the trebuchet's position angle, not its launch angle.</p>
         </div>
         <button onclick="addTrebuchet()">Add trebuchet</button>
       </div>
@@ -280,7 +283,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
             <button type="button" class="angle-help" aria-label="Help with Station A angle" aria-expanded="false" aria-controls="angAHelp" onclick="toggleAngleHelp(this)">?</button>
           </div>
           <input type="number" id="angA" step="0.1" min="0" max="179" aria-describedby="angAHelp">
-          <p class="angle-explanation" id="angAHelp" hidden>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>splash</strong>. Report the angle between the A→B sight line and the A→splash sight line, with the corner at A. Do not measure from the trebuchet or use an absolute compass bearing. Example: a quarter-turn from B toward the splash is 90°.</p>
+          <p class="angle-explanation" id="angAHelp" popover>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>impact</strong>. Report the angle between the A→B sight line and the A→impact sight line, with the corner at A. Do not measure from the trebuchet or use an absolute compass bearing. Example: a quarter-turn from B toward the impact is 90°.</p>
         </div>
         <div class="field">
           <div class="angle-label">
@@ -288,7 +291,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
             <button type="button" class="angle-help" aria-label="Help with Station B angle" aria-expanded="false" aria-controls="angBHelp" onclick="toggleAngleHelp(this)">?</button>
           </div>
           <input type="number" id="angB" step="0.1" min="0" max="179" aria-describedby="angBHelp">
-          <p class="angle-explanation" id="angBHelp" hidden>Stand at <strong>Station B</strong>. Aim toward <strong>Station A</strong> to set 0°, then turn toward the <strong>splash</strong>. Report the angle between the B→A sight line and the B→splash sight line, with the corner at B. Do not measure from the trebuchet or use the A→B direction as your zero. Both splash angles must be greater than 0° and add up to less than 180°.</p>
+          <p class="angle-explanation" id="angBHelp" popover>Stand at <strong>Station B</strong>. Aim toward <strong>Station A</strong> to set 0°, then turn toward the <strong>impact</strong>. Report the angle between the B→A sight line and the B→impact sight line, with the corner at B. Do not measure from the trebuchet or use the A→B direction as your zero. Both impact angles must be greater than 0° and add up to less than 180°.</p>
         </div>
         <div class="field"><label for="known">Known actual distance (optional — for testing)</label><input type="number" id="known" step="0.1" min="0"></div>
         <button onclick="addShot()">Add shot</button>
@@ -323,7 +326,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       <!-- Schematic SVG View -->
       <div id="schematicContainer" style="display:none;">
         <svg id="diagram" viewBox="0 0 600 340"></svg>
-        <p class="tiny">Station A (launch) is fixed at left, Station B at right, splash points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
+        <p class="tiny">Station A (launch) is fixed at left, Station B at right, impact points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
       </div>
 
       <!-- Leaflet Satellite Map View -->
@@ -333,7 +336,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
         <div class="map-legend">
           <span><span class="dot-indicator" style="background:#2f6f7a; border:1px solid #ffffff;"></span> Stations A &amp; B</span>
           <span><span class="dot-indicator" style="background:#c9832f; border:1px solid #ffffff;"></span> Trebuchets</span>
-          <span><span class="dot-indicator" style="background:#173a52; border:1px solid #ffffff;"></span> Splash Points</span>
+          <span><span class="dot-indicator" style="background:#173a52; border:1px solid #ffffff;"></span> Impact Points</span>
         </div>
       </div>
     </div>
@@ -343,10 +346,32 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
 <script>
 const $ = id => document.getElementById(id);
 function toggleAngleHelp(button) {
-  const expanded = button.getAttribute('aria-expanded') !== 'true';
-  button.setAttribute('aria-expanded', String(expanded));
-  $(button.getAttribute('aria-controls')).hidden = !expanded;
+  const help = $(button.getAttribute('aria-controls'));
+  help.togglePopover();
+  if (help.matches(':popover-open')) positionAngleHelp(button, help);
 }
+function positionAngleHelp(button, help) {
+  const anchor = button.getBoundingClientRect();
+  const box = help.getBoundingClientRect();
+  help.style.left = `${Math.max(12, Math.min(anchor.right - box.width, window.innerWidth - box.width - 12))}px`;
+  const top = anchor.bottom + 8 + box.height <= window.innerHeight - 12
+    ? anchor.bottom + 8 : anchor.top - box.height - 8;
+  help.style.top = `${Math.max(12, Math.min(top, window.innerHeight - box.height - 12))}px`;
+}
+document.querySelectorAll('.angle-help').forEach(button => {
+  const help = $(button.getAttribute('aria-controls'));
+  help.addEventListener('toggle', () => {
+    button.setAttribute('aria-expanded', String(help.matches(':popover-open')));
+  });
+});
+function repositionAngleHelp() {
+  document.querySelectorAll('.angle-help').forEach(button => {
+    const help = $(button.getAttribute('aria-controls'));
+    if (help.matches(':popover-open')) positionAngleHelp(button, help);
+  });
+}
+window.addEventListener('resize', repositionAngleHelp);
+window.addEventListener('scroll', repositionAngleHelp, true);
 let currentEventId = null;
 let currentEvent = null;
 let setup = null, shots = [], trebs = [];
@@ -354,16 +379,34 @@ let spectator = /\/spectator\/?$/.test(window.location.pathname);
 let editable = false;
 let passwordProtected = false;
 const editTokens = new Map();
+function getEditToken(eventId) {
+  try {
+    return localStorage.getItem(`td_edit_token:${eventId}`) || editTokens.get(eventId);
+  } catch (err) {
+    console.warn('Cannot read remembered editing access:', err);
+    return editTokens.get(eventId);
+  }
+}
+function setEditToken(eventId, token) {
+  if (token) editTokens.set(eventId, token);
+  else editTokens.delete(eventId);
+  try {
+    if (token) localStorage.setItem(`td_edit_token:${eventId}`, token);
+    else localStorage.removeItem(`td_edit_token:${eventId}`);
+  } catch (err) {
+    showInlineError(`Cannot remember editing access in this browser: ${err.message}`);
+  }
+}
 
 async function eventFetch(url, options = {}) {
   const eventId = currentEventId;
   const headers = new Headers(options.headers);
-  if (!spectator && editTokens.has(eventId)) {
-    headers.set('Authorization', `Bearer ${editTokens.get(eventId)}`);
+  if (!spectator && getEditToken(eventId)) {
+    headers.set('Authorization', `Bearer ${getEditToken(eventId)}`);
   }
   const res = await fetch(url, { ...options, headers, cache: 'no-store' });
   if (res.status === 401 && eventId === currentEventId) {
-    editTokens.delete(eventId);
+    setEditToken(eventId, null);
     editable = false;
     renderAccess();
   }
@@ -399,7 +442,7 @@ async function unlockEvent(e) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     if (eventId !== currentEventId) return;
-    editTokens.set(eventId, data.token);
+    setEditToken(eventId, data.token);
     $('eventPassword').value = '';
     await loadAll();
   } catch (err) {
@@ -421,17 +464,23 @@ async function changePassword(e) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     $('changeEventPassword').value = '';
-    editTokens.delete(currentEventId);
+    setEditToken(currentEventId, null);
     await loadAll();
   } catch (err) {
     showInlineError(`Cannot change password: ${err.message}`);
   }
 }
 
-function lockEditor() {
-  editTokens.delete(currentEventId);
-  editable = !passwordProtected;
-  renderAccess();
+async function lockEditor() {
+  try {
+    const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/session`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not revoke editing access.');
+    setEditToken(currentEventId, null);
+    editable = !passwordProtected;
+    renderAccess();
+  } catch (err) {
+    showInlineError(`Cannot lock editing: ${err.message}`);
+  }
 }
 
 // Parse event ID from path `/event/:id` or query param `?event=:id`
@@ -476,7 +525,7 @@ async function loadEventsList() {
       <div class="event-item">
         <div>
           <strong style="color:var(--deep); font-size:.95rem;">${escapeHtml(e.name)}</strong>
-          <span style="color:var(--lake); font-size:.82rem; margin-left:8px;">${e.baseline ? `Baseline: ${e.baseline} ${e.unit}` : 'Baseline not set'}</span>
+          <span style="color:var(--accent); font-size:.82rem; margin-left:8px;">${e.baseline ? `Baseline: ${e.baseline} ${e.unit}` : 'Baseline not set'}</span>
         </div>
         <div>
           <button style="padding:4px 12px; font-size:.82rem;" onclick="selectEvent('${encodeURIComponent(e.id)}')">Open Tracker</button>
@@ -527,7 +576,7 @@ async function handleCreateEvent() {
       });
       if (sessionRes.ok) {
         const session = await sessionRes.json();
-        editTokens.set(created.id, session.token);
+        setEditToken(created.id, session.token);
       } else {
         const data = await sessionRes.json();
         await selectEvent(created.id);
@@ -628,7 +677,7 @@ async function copyShareUrl() {
 async function loadAll() {
   if (!currentEventId) return;
   const eventId = currentEventId;
-  const requestToken = editTokens.get(eventId);
+  const requestToken = getEditToken(eventId);
 
   try {
     const [eventRes, setupRes, trebsRes, shotsRes, accessRes] = await Promise.all([
@@ -638,7 +687,7 @@ async function loadAll() {
       eventFetch(`/api/events/${encodeURIComponent(eventId)}/shots`),
       eventFetch(`/api/events/${encodeURIComponent(eventId)}/access`)
     ]);
-    if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+    if (eventId !== currentEventId || requestToken !== getEditToken(eventId)) return;
 
     if (!eventRes.ok) {
       if (eventRes.status === 404) {
@@ -666,11 +715,12 @@ async function loadAll() {
     const [eventData, setupData, loadedTrebs, loadedShots, access] = await Promise.all([
       eventRes.json(), setupRes.json(), trebsRes.json(), shotsRes.json(), accessRes.json()
     ]);
-    if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+    if (eventId !== currentEventId || requestToken !== getEditToken(eventId)) return;
     currentEvent = eventData;
     setup = setupData;
     passwordProtected = access.passwordProtected;
     editable = access.editable && !spectator;
+    if (!spectator && !access.editable) setEditToken(eventId, null);
     trebs = Array.isArray(loadedTrebs) ? loadedTrebs : [];
     shots = Array.isArray(loadedShots) ? loadedShots : [];
 
@@ -679,7 +729,7 @@ async function loadAll() {
     $('mainSubtitle').textContent = spectator
       ? 'Spectator view - live event results, read-only.'
       : 'Submission view - survey trebuchets and log shots.';
-    document.title = `${currentEvent.name} - ${spectator ? 'Spectator' : 'Submitter'} | Splash Distance Tracker`;
+    document.title = `${currentEvent.name} - ${spectator ? 'Spectator' : 'Submitter'} | Impact Distance Tracker`;
     renderAccess();
     $('liveStatus').textContent = 'Live updates every 3 seconds.';
 
@@ -704,7 +754,7 @@ async function pollData() {
   if (polling) return;
   polling = true;
   const eventId = currentEventId;
-  const requestToken = editTokens.get(eventId);
+  const requestToken = getEditToken(eventId);
 
   try {
     if (!currentEvent) {
@@ -717,7 +767,7 @@ async function pollData() {
       eventFetch(`/api/events/${encodeURIComponent(eventId)}/setup`),
       eventFetch(`/api/events/${encodeURIComponent(eventId)}/access`)
     ]);
-    if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+    if (eventId !== currentEventId || requestToken !== getEditToken(eventId)) return;
     if (!trebsRes.ok || !shotsRes.ok || !setupRes.ok || !accessRes.ok) {
       throw new Error(shotsRes.status === 404 ? 'Event no longer exists.' : 'Failed to refresh event data.');
     }
@@ -727,7 +777,7 @@ async function pollData() {
       const rawShots = await shotsRes.json();
       const newSetup = await setupRes.json();
       const access = await accessRes.json();
-      if (eventId !== currentEventId || requestToken !== editTokens.get(eventId)) return;
+      if (eventId !== currentEventId || requestToken !== getEditToken(eventId)) return;
       const newEditable = access.editable && !spectator;
       if (passwordProtected !== access.passwordProtected || editable !== newEditable) {
         passwordProtected = access.passwordProtected;
@@ -981,7 +1031,7 @@ async function addShot() {
     shots.push(data);
     clearInlineError();
 
-    $('lastResult').innerHTML = `<div class="result">${data.dist.toFixed(1)} <span class="result-unit">${setup.unit}</span></div><div class="tiny">from ${escapeHtml(data.treb)} to splash — baseline self-check: ${data.check.toFixed(1)} ${setup.unit} (should be close to ${setup.baseline})</div>`;
+    $('lastResult').innerHTML = `<div class="result">${data.dist.toFixed(1)} <span class="result-unit">${setup.unit}</span></div><div class="tiny">from ${escapeHtml(data.treb)} to impact — baseline self-check: ${data.check.toFixed(1)} ${setup.unit} (should be close to ${setup.baseline})</div>`;
     $('label').value = '';
     $('angA').value = '';
     $('angB').value = '';
@@ -1068,7 +1118,7 @@ function renderDiagram() {
   const hasShots = Boolean(shots && shots.length > 0);
 
   if (!hasBaseline && !hasTrebs && !hasShots) {
-    svg.innerHTML = `<text x="300" y="170" text-anchor="middle" fill="var(--lake)" font-size="13" font-family="Georgia">Save baseline or add a trebuchet to see the plot</text>`;
+    svg.innerHTML = `<text x="300" y="170" text-anchor="middle" fill="var(--accent)" font-size="13" font-family="Georgia">Save baseline or add a trebuchet to see the plot</text>`;
     return;
   }
 
@@ -1113,7 +1163,7 @@ function renderDiagram() {
   }).join('');
 
   const baselineMarkup = hasBaseline ? `
-    <line x1="${Ax}" y1="${Ay}" x2="${Bx}" y2="${By}" stroke="var(--lake2)" stroke-width="2"/>
+    <line x1="${Ax}" y1="${Ay}" x2="${Bx}" y2="${By}" stroke="var(--accent2)" stroke-width="2"/>
     <circle cx="${Bx}" cy="${By}" r="5" fill="var(--deep)"/>
     <text x="${Bx + 6}" y="${By + 20}" font-size="11" fill="var(--deep)" font-family="Georgia">B</text>
   ` : '';
@@ -1124,7 +1174,7 @@ function renderDiagram() {
   `;
 
   const emptyHint = (!hasTrebs && !hasShots) ? `
-    <text x="300" y="160" text-anchor="middle" fill="var(--lake)" font-size="12" font-family="Georgia" opacity="0.7">Add a trebuchet or log a shot to see it plotted</text>
+    <text x="300" y="160" text-anchor="middle" fill="var(--accent)" font-size="12" font-family="Georgia" opacity="0.7">Add a trebuchet or log a shot to see it plotted</text>
   ` : '';
 
   svg.innerHTML = `
@@ -1252,16 +1302,16 @@ function renderMap() {
     }
   });
 
-  // Plot shots with splashGeo
+  // Plot shots with impactGeo
   shots.forEach(s => {
-    if (s.splashGeo && s.splashGeo.lat != null && s.splashGeo.lng != null) {
-      const posS = [s.splashGeo.lat, s.splashGeo.lng];
+    if (s.impactGeo && s.impactGeo.lat != null && s.impactGeo.lng != null) {
+      const posS = [s.impactGeo.lat, s.impactGeo.lng];
       bounds.extend(posS);
-      const markerS = createMapMarker(posS, 'splash', s.label,
+      const markerS = createMapMarker(posS, 'impact', s.label,
         `<b>${escapeHtml(s.label)} (${escapeHtml(s.treb || 'Station A')})</b><br>Distance: ${s.dist.toFixed(1)} ${setup.unit || ''}<br>Check: ${s.check.toFixed(1)} ${setup.unit || ''}`);
       mapLayerGroup.addLayer(markerS);
 
-      // Trajectory line from firing origin (treb or Station A) to splash
+      // Trajectory line from firing origin (treb or Station A) to impact
       let originPos = posA;
       if (s.trebGeo && s.trebGeo.lat != null && s.trebGeo.lng != null) {
         originPos = [s.trebGeo.lat, s.trebGeo.lng];
@@ -1284,7 +1334,7 @@ function createMapMarker(position, kind, label, popup, letter = '') {
   const symbols = {
     station: `<circle cx="16" cy="16" r="13" fill="#2f6f7a" stroke="white" stroke-width="2"/><text x="16" y="21" text-anchor="middle" fill="white" font-family="Trebuchet MS,sans-serif" font-size="15" font-weight="bold">${letter}</text>`,
     trebuchet: '<rect x="2" y="2" width="28" height="28" rx="4" fill="#c9832f" stroke="white" stroke-width="2"/><path d="M8 25h16M10 24l6-12 6 12M7 9l18 7M8 9v8" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>',
-    splash: '<circle cx="16" cy="16" r="13" fill="#173a52" stroke="white" stroke-width="2"/><path d="M16 6c-2 4-5 7-5 10a5 5 0 0010 0c0-3-3-6-5-10zM7 24q9 5 18 0" fill="none" stroke="white" stroke-width="2"/>'
+    impact: '<g data-icon="pumpkin"><circle cx="16" cy="16" r="14" fill="white" stroke="#173a52" stroke-width="1.5"/><text x="16" y="24" text-anchor="middle" font-size="23">🎃</text></g>'
   };
   return L.marker(position, {
     title: label,

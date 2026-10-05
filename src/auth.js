@@ -1,4 +1,4 @@
-const { randomBytes, scrypt, timingSafeEqual } = require('node:crypto');
+const { randomBytes, scrypt, timingSafeEqual, createHash } = require('node:crypto');
 const { promisify } = require('node:util');
 
 const deriveKey = promisify(scrypt);
@@ -16,15 +16,12 @@ async function verifyPassword(password, hash) {
 }
 
 function createAuth(db) {
-  const sessions = new Map();
   const attempts = new Map();
-  const lifetime = 12 * 60 * 60 * 1000;
+  const tokenHash = req => createHash('sha256')
+    .update((req.get('Authorization') || '').replace(/^Bearer /, '')).digest('hex');
 
   function prune() {
     const now = Date.now();
-    for (const [key, value] of sessions) {
-      if (value.expires <= now) sessions.delete(key);
-    }
     for (const [key, value] of attempts) {
       if (value.expires <= now) attempts.delete(key);
     }
@@ -33,10 +30,7 @@ function createAuth(db) {
   function authorized(req, eventId) {
     const hash = db.getEventPasswordHash(eventId);
     if (!hash) return true;
-    const token = (req.get('Authorization') || '').replace(/^Bearer /, '');
-    const session = sessions.get(token);
-    return Boolean(session && session.eventId === eventId &&
-      session.expires > Date.now() && session.hash === hash);
+    return db.hasEditingSession(eventId, tokenHash(req));
   }
 
   async function login(req, res) {
@@ -47,7 +41,7 @@ function createAuth(db) {
     prune();
     const key = `${req.ip}:${eventId}`;
     const attempt = attempts.get(key) || { count: 0, expires: Date.now() + 15 * 60 * 1000 };
-    if (attempt.count >= 10 || attempts.size >= 10000 || sessions.size >= 10000) {
+    if (attempt.count >= 10 || attempts.size >= 10000) {
       return res.status(429).json({ error: 'Too many unlock attempts. Please try again later.' });
     }
     attempt.count++;
@@ -60,11 +54,20 @@ function createAuth(db) {
     }
     attempts.delete(key);
     const token = randomBytes(32).toString('hex');
-    sessions.set(token, { eventId, hash, expires: Date.now() + lifetime });
+    // A password change during scrypt verification must not grant access with the old password.
+    if (db.getEventPasswordHash(eventId) !== hash) {
+      return res.status(401).json({ error: 'Event password changed. Please try again.' });
+    }
+    db.saveEditingSession(eventId, createHash('sha256').update(token).digest('hex'));
     res.set('Cache-Control', 'no-store').json({ token });
   }
 
-  return { authorized, login };
+  function logout(req, res) {
+    db.deleteEditingSession(req.params.eventId, tokenHash(req));
+    res.json({ success: true });
+  }
+
+  return { authorized, login, logout };
 }
 
 module.exports = { hashPassword, createAuth };

@@ -1,7 +1,7 @@
 {
   "name": "chunkin-calculator",
   "version": "1.0.0",
-  "description": "Trebuchet Splash Distance Tracker backend and frontend",
+  "description": "Trebuchet Impact Distance Tracker backend and frontend",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

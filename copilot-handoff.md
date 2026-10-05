@@ -1,4 +1,4 @@
-# Splash Distance Tracker — Copilot handoff
+# Impact Distance Tracker — Copilot handoff
 
 This file has two parts. Copy the first section into `.github/copilot-instructions.md`
 in your repo (Copilot Chat reads this automatically on every request in the project,

@@ -116,6 +116,13 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
   }
 
   runMigrations();
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS editing_sessions (
+      token_hash TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
+    );
+  `);
 
   return {
     raw: db,
@@ -125,7 +132,22 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
     },
 
     setEventPasswordHash(id, hash) {
-      db.prepare('UPDATE events SET password_hash = ? WHERE id = ?').run(hash, id);
+      db.transaction(() => {
+        db.prepare('DELETE FROM editing_sessions WHERE event_id = ?').run(id);
+        db.prepare('UPDATE events SET password_hash = ? WHERE id = ?').run(hash, id);
+      })();
+    },
+
+    saveEditingSession(eventId, tokenHash) {
+      db.prepare('INSERT INTO editing_sessions (event_id, token_hash) VALUES (?, ?)').run(eventId, tokenHash);
+    },
+
+    hasEditingSession(eventId, tokenHash) {
+      return Boolean(db.prepare('SELECT 1 FROM editing_sessions WHERE event_id = ? AND token_hash = ?').get(eventId, tokenHash));
+    },
+
+    deleteEditingSession(eventId, tokenHash) {
+      db.prepare('DELETE FROM editing_sessions WHERE event_id = ? AND token_hash = ?').run(eventId, tokenHash);
     },
 
     // Events

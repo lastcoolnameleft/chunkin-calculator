@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Splash Distance Tracker</title>
+<title>Impact Distance Tracker</title>
 <style>
 :root{
   --ink:#0f2436; --paper:#f2ede2; --line:#c9bfa8;
-  --deep:#173a52; --lake:#2f6f7a; --lake2:#4a95a0; --amber:#c9832f;
+  --deep:#173a52; --accent:#2f6f7a; --accent2:#4a95a0; --amber:#c9832f;
   --danger:#a3401f; --card:#fbf8f0;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
@@ -16,13 +16,13 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --ink:#e8e2d2; --paper:#101c24; --line:#33475a;
-    --deep:#bcd6e6; --lake:#7fc4cf; --lake2:#4a95a0; --amber:#e2a355;
+    --deep:#bcd6e6; --accent:#7fc4cf; --accent2:#4a95a0; --amber:#e2a355;
     --card:#152530;
   }
 }
 :root[data-theme="dark"]{
   --ink:#e8e2d2; --paper:#101c24; --line:#33475a;
-  --deep:#bcd6e6; --lake:#7fc4cf; --lake2:#4a95a0; --amber:#e2a355;
+  --deep:#bcd6e6; --accent:#7fc4cf; --accent2:#4a95a0; --amber:#e2a355;
   --card:#152530;
 }
 *{box-sizing:border-box}
@@ -36,7 +36,7 @@ h1{
   font-size:1.5rem; margin:0 0 4px; font-weight:600; letter-spacing:.2px;
   font-family:'Trebuchet MS',Georgia,serif;
 }
-.sub{color:var(--lake); font-size:.92rem; margin:0 0 24px; max-width:60ch; line-height:1.5}
+.sub{color:var(--accent); font-size:.92rem; margin:0 0 24px; max-width:60ch; line-height:1.5}
 .wrap{max-width:760px; margin:0 auto}
 .card{
   background:var(--card); border:1px solid var(--line); border-radius:3px;
@@ -45,12 +45,12 @@ h1{
 .card h2{font-size:1.02rem; margin:0 0 12px; color:var(--deep); font-weight:600}
 .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end}
 .field{display:flex; flex-direction:column; gap:4px; flex:1; min-width:120px}
-.field label{font-size:.78rem; color:var(--lake); font-family:'Trebuchet MS',sans-serif}
+.field label{font-size:.78rem; color:var(--accent); font-family:'Trebuchet MS',sans-serif}
 input,select{
   font:inherit; padding:8px 9px; border:1px solid var(--line); border-radius:2px;
   background:var(--paper); color:var(--ink); font-size:.95rem; width:100%;
 }
-input:focus,select:focus,button:focus{outline:2px solid var(--lake2); outline-offset:1px}
+input:focus,select:focus,button:focus{outline:2px solid var(--accent2); outline-offset:1px}
 button{
   font:inherit; background:var(--deep); color:var(--paper); border:none;
   padding:9px 16px; border-radius:2px; cursor:pointer; font-size:.9rem;
@@ -58,30 +58,30 @@ button{
 }
 button.secondary{background:transparent; color:var(--deep); border:1px solid var(--line)}
 button:hover{opacity:.88}
-.setup-status{font-size:.85rem; color:var(--lake); margin-top:8px}
+.setup-status{font-size:.85rem; color:var(--accent); margin-top:8px}
 .result{
   font-size:2.1rem; color:var(--amber); font-weight:700; margin:4px 0;
   font-family:'Trebuchet MS',sans-serif;
 }
-.result-unit{font-size:1rem; color:var(--lake)}
+.result-unit{font-size:1rem; color:var(--accent)}
 .warn{color:var(--danger); font-size:.85rem; margin-top:6px}
 table{width:100%; border-collapse:collapse; font-size:.85rem; margin-top:6px}
 th,td{text-align:left; padding:6px 8px; border-bottom:1px solid var(--line)}
-th{color:var(--lake); font-weight:600; font-family:'Trebuchet MS',sans-serif; font-size:.75rem; text-transform:none}
+th{color:var(--accent); font-weight:600; font-family:'Trebuchet MS',sans-serif; font-size:.75rem; text-transform:none}
 th.num,td.num{text-align:right; font-variant-numeric:tabular-nums}
 th.action,td.action{text-align:center; width:36px; padding-left:0; padding-right:4px}
 .del{background:none; border:none; color:var(--danger); cursor:pointer; padding:2px 6px; font-size:1rem}
 svg{width:100%; height:auto; display:block; background:var(--paper); border:1px solid var(--line); border-radius:2px}
 .scroll{overflow-x:auto}
 textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; padding:8px; border:1px solid var(--line); border-radius:2px; background:var(--paper); color:var(--ink)}
-.tiny{font-size:.78rem; color:var(--lake); margin-top:8px; line-height:1.5}
-.empty{color:var(--lake); font-size:.88rem; padding:8px 0}
+.tiny{font-size:.78rem; color:var(--accent); margin-top:8px; line-height:1.5}
+.empty{color:var(--accent); font-size:.88rem; padding:8px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Splash Distance Tracker</h1>
-  <p class="sub">Triangulate trebuchet landing distance from two shore stations — spotters read one angle each, no math required on their end.</p>
+  <h1>Impact Distance Tracker</h1>
+  <p class="sub">Triangulate trebuchet landing distance from two observation stations — spotters read one angle each, no math required on their end.</p>
 
   <div class="card" id="setupCard">
     <h2>1. Setup (once, before the event)</h2>
@@ -97,12 +97,12 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       <button onclick="saveSetup()">Save setup</button>
     </div>
     <div class="setup-status" id="setupStatus">No baseline saved yet.</div>
-    <p class="tiny">Stations A and B just need a clear view of the whole lake — one pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
+    <p class="tiny">Stations A and B need a clear view of the entire target area. One pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
   </div>
 
   <div class="card" id="trebCard">
     <h2>2. Trebuchets (one-time survey, do for each of the four)</h2>
-    <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the lake, negative angles down to -180° sweep behind the baseline).</p>
+    <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the target area, negative angles down to -180° sweep behind the baseline).</p>
     <div class="row">
       <div class="field"><label for="trebName">Name</label><input type="text" id="trebName" placeholder="Trebuchet 1"></div>
       <div class="field"><label for="trebDist">Distance from Station A</label><input type="number" id="trebDist" step="0.1" min="0"></div>
@@ -146,7 +146,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
   <div class="card">
     <h2>Diagram</h2>
     <svg id="diagram" viewBox="0 0 600 340"></svg>
-    <p class="tiny">Station A (launch) is fixed at left, Station B at right, splash points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
+    <p class="tiny">Station A (launch) is fixed at left, Station B at right, impact points plotted per shot. Not to a fixed scale between shots and setup card — for a visual sanity check only.</p>
   </div>
 </div>
 
@@ -223,7 +223,7 @@ function addShot(){
   const shot={label, treb:trebName, tx, ty, angA, angB, dist, check:r.baselineCheck, px:r.px, py:r.py, known: isNaN(known)?null:known};
   shots.push(shot);
   persist();
-  $('lastResult').innerHTML = `<div class="result">${dist.toFixed(1)} <span class="result-unit">${setup.unit}</span></div><div class="tiny">from ${trebName} to splash — baseline self-check: ${r.baselineCheck.toFixed(1)} ${setup.unit} (should be close to ${setup.baseline})</div>`;
+  $('lastResult').innerHTML = `<div class="result">${dist.toFixed(1)} <span class="result-unit">${setup.unit}</span></div><div class="tiny">from ${trebName} to impact — baseline self-check: ${r.baselineCheck.toFixed(1)} ${setup.unit} (should be close to ${setup.baseline})</div>`;
   $('label').value=''; $('angA').value=''; $('angB').value=''; $('known').value='';
   renderTable(); renderDiagram();
 }
@@ -251,7 +251,7 @@ function renderDiagram(){
   const hasShots = Boolean(shots && shots.length > 0);
 
   if(!hasBaseline && !hasTrebs && !hasShots){
-    svg.innerHTML = `<text x="300" y="170" text-anchor="middle" fill="var(--lake)" font-size="13" font-family="Georgia">Save baseline or add a trebuchet to see the plot</text>`;
+    svg.innerHTML = `<text x="300" y="170" text-anchor="middle" fill="var(--accent)" font-size="13" font-family="Georgia">Save baseline or add a trebuchet to see the plot</text>`;
     return;
   }
 
@@ -296,7 +296,7 @@ function renderDiagram(){
   }).join('');
 
   const baselineMarkup = hasBaseline ? `
-    <line x1="${Ax}" y1="${Ay}" x2="${Bx}" y2="${By}" stroke="var(--lake2)" stroke-width="2"/>
+    <line x1="${Ax}" y1="${Ay}" x2="${Bx}" y2="${By}" stroke="var(--accent2)" stroke-width="2"/>
     <circle cx="${Bx}" cy="${By}" r="5" fill="var(--deep)"/>
     <text x="${Bx + 6}" y="${By + 20}" font-size="11" fill="var(--deep)" font-family="Georgia">B</text>
   ` : '';
@@ -307,7 +307,7 @@ function renderDiagram(){
   `;
 
   const emptyHint = (!hasTrebs && !hasShots) ? `
-    <text x="300" y="160" text-anchor="middle" fill="var(--lake)" font-size="12" font-family="Georgia" opacity="0.7">Add a trebuchet or log a shot to see it plotted</text>
+    <text x="300" y="160" text-anchor="middle" fill="var(--accent)" font-size="12" font-family="Georgia" opacity="0.7">Add a trebuchet or log a shot to see it plotted</text>
   ` : '';
 
   svg.innerHTML = `

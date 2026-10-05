@@ -26,7 +26,7 @@ test('GET / serves frontend index.html', async () => {
   const res = await fetch(`${baseUrl}/`);
   assert.strictEqual(res.status, 200);
   const text = await res.text();
-  assert.ok(text.includes('Splash Distance Tracker'));
+  assert.ok(text.includes('Impact Distance Tracker'));
   assert.ok(text.includes('loadAll()'));
 });
 
@@ -199,7 +199,7 @@ test('Events API and direct event URL routing', async () => {
   let res = await fetch(`${baseUrl}/event/summer-fest-2025`);
   assert.strictEqual(res.status, 200);
   let text = await res.text();
-  assert.ok(text.includes('Splash Distance Tracker'));
+  assert.ok(text.includes('Impact Distance Tracker'));
 
   // List events initially (should have default event or empty)
   res = await fetch(`${baseUrl}/api/events`);
@@ -295,7 +295,7 @@ test('GPS station setup and geo-enrichment on trebuchets and shots', async () =>
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      name: 'Lake GPS Event',
+      name: 'GPS Event',
       baseline: 50,
       unit: 'm',
       stationALat: 42.123456,
@@ -365,8 +365,8 @@ test('GPS station setup and geo-enrichment on trebuchets and shots', async () =>
   assert.strictEqual(res.status, 201);
   const shot = await res.json();
   assert.ok(shot.geo);
-  assert.ok(typeof shot.geo.splashLat === 'number');
-  assert.ok(typeof shot.geo.splashLng === 'number');
+  assert.ok(typeof shot.geo.impactLat === 'number');
+  assert.ok(typeof shot.geo.impactLng === 'number');
   assert.ok(typeof shot.geo.trebLat === 'number');
   assert.ok(typeof shot.geo.trebLng === 'number');
 
@@ -379,5 +379,4 @@ test('GPS station setup and geo-enrichment on trebuchets and shots', async () =>
   // Clean up
   await fetch(`${baseUrl}/api/events/${event.id}`, { method: 'DELETE' });
 });
-
 

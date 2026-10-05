@@ -122,15 +122,23 @@ test('database adds password storage without changing existing event metadata', 
   assert.ok(db.raw.prepare('PRAGMA table_info(events)').all().some(c => c.name === 'password_hash'));
 });
 
-test('editing sessions expire after twelve hours', async t => {
-  const { request } = await fixture(t);
+test('editing sessions remain trusted until explicitly revoked, including backend restarts', async t => {
+  const { request, db } = await fixture(t);
   let now = Date.now();
   t.mock.method(Date, 'now', () => now);
   const event = await (await request('/api/events', 'POST', { name: 'Expiring', password: 'shared' })).json();
   const base = `/api/events/${event.id}`;
   const { token } = await (await request(base + '/session', 'POST', { password: 'shared' })).json();
   assert.equal((await request(base + '/shots', 'DELETE', undefined, token)).status, 200);
-  now += 12 * 60 * 60 * 1000;
+  now += 365 * 24 * 60 * 60 * 1000;
+  assert.equal((await request(base + '/shots', 'DELETE', undefined, token)).status, 200);
+  const restarted = createApp(db).listen(0, '127.0.0.1');
+  await new Promise(resolve => restarted.on('listening', resolve));
+  t.after(() => restarted.close());
+  const url = `http://127.0.0.1:${restarted.address().port}${base}/access`;
+  const access = await (await fetch(url, { headers: { Authorization: `Bearer ${token}` } })).json();
+  assert.equal(access.editable, true);
+  assert.equal((await request(base + '/session', 'DELETE', undefined, token)).status, 200);
   assert.equal((await request(base + '/shots', 'DELETE', undefined, token)).status, 401);
 });
 
@@ -156,6 +164,7 @@ test('existing database migrates without losing events and password hashes persi
     assert.equal(db.getSetup('legacy').baseline, 50);
     assert.equal(db.getEventPasswordHash('legacy'), null);
     db.setEventPasswordHash('legacy', 'persisted-salt:persisted-hash');
+    db.saveEditingSession('legacy', 'persisted-token-hash');
   } finally {
     db.close();
   }
@@ -163,6 +172,7 @@ test('existing database migrates without losing events and password hashes persi
   try {
     assert.equal(db.getEventPasswordHash('legacy'), 'persisted-salt:persisted-hash');
     assert.ok(!('password_hash' in db.getEventById('legacy')));
+    assert.equal(db.hasEditingSession('legacy', 'persisted-token-hash'), true);
   } finally {
     db.close();
   }

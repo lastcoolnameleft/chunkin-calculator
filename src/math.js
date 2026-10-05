@@ -1,5 +1,5 @@
 /**
- * Math utilities for the Trebuchet Splash Distance Tracker.
+ * Math utilities for the Trebuchet Impact Distance Tracker.
  * Preserves the exact triangulation formulas from the original client-side app.
  */
 
@@ -36,22 +36,22 @@ function getTrebuchetPosition(treb) {
 }
 
 function calculateShot({ angA, angB, baseline, treb = null, label = '', known = null }) {
-  const splash = computeShot(angA, angB, baseline);
-  if (!splash) {
+  const impact = computeShot(angA, angB, baseline);
+  if (!impact) {
     return null;
   }
 
   let tx = 0;
   let ty = 0;
   let trebName = 'Station A';
-  let dist = splash.AP;
+  let dist = impact.AP;
 
   if (treb) {
     const pos = getTrebuchetPosition(treb);
     tx = pos.x;
     ty = pos.y;
     trebName = treb.name;
-    dist = Math.hypot(splash.px - tx, splash.py - ty);
+    dist = Math.hypot(impact.px - tx, impact.py - ty);
   }
 
   return {
@@ -62,9 +62,9 @@ function calculateShot({ angA, angB, baseline, treb = null, label = '', known = 
     angA,
     angB,
     dist,
-    check: splash.baselineCheck,
-    px: splash.px,
-    py: splash.py,
+    check: impact.baselineCheck,
+    px: impact.px,
+    py: impact.py,
     known: known !== null && known !== undefined && !isNaN(known) ? Number(known) : null
   };
 }
@@ -122,7 +122,7 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2, unit = 'ft') {
  * In our triangulation model:
  * - Station A is (0, 0)
  * - The positive x-axis points from Station A towards Station B (azimuth = bearingAB)
- * - The positive y-axis points into the lake (+90 degrees counter-clockwise from the AB axis).
+ * - The positive y-axis points into the target area (+90 degrees counter-clockwise from the AB axis).
  *   In standard navigation compass bearings (where North=0, East=90, clockwise):
  *   Pointing +90 deg counter-clockwise from bearingAB corresponds to compass bearing: (bearingAB - 90 deg).
  *

@@ -1,37 +1,37 @@
 ---
 title: "Triangulation Field Guide & Baseline Sizing"
-description: "Practical guide for setting up shore stations, selecting baseline distances, and understanding triangulation accuracy and diminishing returns for trebuchet splash tracking."
+description: "Practical guide for setting up observation stations, selecting baseline distances, and understanding triangulation accuracy and diminishing returns for trebuchet impact tracking."
 ---
 
 ## Overview
 
-This guide explains how to plan and set up observation stations for measuring splash distances during live trebuchet launches. It covers how baseline distance determines measurement accuracy, how to calculate the optimal baseline for your expected throwing distance, and where the point of diminishing returns lies.
+This guide explains how to plan and set up observation stations for measuring impact distances during live trebuchet launches. It covers how baseline distance determines measurement accuracy, how to calculate the optimal baseline for your expected throwing distance, and where the point of diminishing returns lies.
 
 ![Triangulation Setup](./triangulation-diagram.png)
 
-## The Short Version: Two Spotters Find One Splash
+## The Short Version: Two Spotters Find One Impact
 
-Imagine two people standing at fixed places on the shore, both pointing at the same splash. Each person's sight line is like an invisible string stretching out over the water. The place where those two strings cross is the splash.
+Imagine two people standing at fixed observation points, both pointing at the same point of impact. Each person's sight line is like an invisible string stretching across the target area. The place where those two strings cross is the point of impact.
 
-We measure the distance between the two shore stations just once. That distance is called the **baseline**. Together, the baseline and the two sight lines form a triangle. Knowing one side and the two corner angles is enough for the computer to work out where the splash landed.
+We measure the distance between the two observation stations just once. That distance is called the **baseline**. Together, the baseline and the two sight lines form a triangle. Knowing one side and the two corner angles is enough for the computer to work out the point of impact.
 
 **The spotters do not need to do any math:**
 
-1. At **Station A**, point the angle gauge toward **Station B** and call that zero. When the splash happens, turn toward it and report how many degrees you turned.
-2. At **Station B**, do the reverse: zero toward **Station A**, then turn toward the same splash and report that angle.
+1. At **Station A**, point the angle gauge toward **Station B** and call that zero. When the impact happens, turn toward it and report how many degrees you turned.
+2. At **Station B**, do the reverse: zero toward **Station A**, then turn toward the same impact and report that angle.
 3. The submitter selects the firing trebuchet and enters both readings. The website calculates the distance and adds the result to the live shot log.
 
-The angle is measured **at the station**, between the direction toward the other station and the direction toward the splash. It is not the trebuchet's firing angle and not an absolute compass bearing.
+The angle is measured **at the station**, between the direction toward the other station and the direction toward the impact. It is not the trebuchet's firing angle and not an absolute compass bearing.
 
 ### Why We Survey Each Trebuchet
 
-The triangle tells us how far the splash is from Station A, but the trebuchet may be somewhere else! Before the event, we measure each trebuchet's distance and angle from A. The computer uses that fixed starting position to calculate the straight-line distance **from the firing trebuchet to the splash**. If no trebuchet is selected, it measures from Station A instead.
+The triangle tells us how far the impact is from Station A, but the trebuchet may be somewhere else! Before the event, we measure each trebuchet's distance and angle from A. The computer uses that fixed starting position to calculate the straight-line distance **from the firing trebuchet to the impact**. If no trebuchet is selected, it measures from Station A instead.
 
 ### What the Visualizers Show
 
-The **satellite map** uses optional station GPS coordinates to place station, trebuchet, and splash icons over the lake. The **schematic** shows the same layout on a simple plot without needing GPS. The icons and shot log update as new readings arrive.
+The **satellite map** uses optional station GPS coordinates to place station, trebuchet, and impact icons over the target area. The **schematic** shows the same layout on a simple plot without needing GPS. The icons and shot log update as new readings arrive.
 
-GPS is only used to position the map overlay. The competition distance comes from the measured baseline and the two sighting angles, not from GPS. A convincing-looking map does not guarantee accurate readings: both spotters must sight the same splash and use the correct zero direction.
+GPS is only used to position the map overlay. The competition distance comes from the measured baseline and the two sighting angles, not from GPS. A convincing-looking map does not guarantee accurate readings: both spotters must sight the same impact and use the correct zero direction.
 
 ## The Math Behind the Result
 
@@ -39,7 +39,7 @@ You can skip this section during the event; the website performs every step.
 
 ### 1. Finish the Triangle
 
-Let $d$ be the baseline length, $\text{angA}$ the reading at A, and $\text{angB}$ the reading at B. The angles inside a triangle add up to 180 degrees, so the angle at the splash is:
+Let $d$ be the baseline length, $\text{angA}$ the reading at A, and $\text{angB}$ the reading at B. The angles inside a triangle add up to 180 degrees, so the angle at the impact is:
 
 $$\text{angP} = 180^\circ - \text{angA} - \text{angB}$$
 
@@ -47,7 +47,7 @@ Both station readings must be greater than zero and their sum must be less than 
 
 ### 2. Find the Distances from the Stations
 
-The **law of sines** links each side of a triangle to the angle opposite it. This gives the distance from A to the splash ($AP$) and B to the splash ($BP$):
+The **law of sines** links each side of a triangle to the angle opposite it. This gives the distance from A to the impact ($AP$) and B to the impact ($BP$):
 
 $$AP = d \cdot \frac{\sin(\text{angB})}{\sin(\text{angP})}$$
 
@@ -55,13 +55,13 @@ $$BP = d \cdot \frac{\sin(\text{angA})}{\sin(\text{angP})}$$
 
 The inputs are in degrees; the code converts them to radians before using sine or cosine.
 
-For example, if the baseline is **50 feet** and both spotters report **60 degrees**, the third angle is also 60 degrees. All three sides are equal, so the splash is 50 feet from each station.
+For example, if the baseline is **50 feet** and both spotters report **60 degrees**, the third angle is also 60 degrees. All three sides are equal, so the impact is 50 feet from each station.
 
-### 3. Put the Splash and Trebuchet on the Same Plot
+### 3. Put the Impact and Trebuchet on the Same Plot
 
-Think of Station A as the starting dot on a sheet of graph paper. The direction from A toward B runs to the right. Positive angles point into the lake.
+Think of Station A as the starting dot on a sheet of graph paper. The direction from A toward B runs to the right. Positive angles point into the target area.
 
-The splash position is:
+The impact position is:
 
 $$p_x = AP \cdot \cos(\text{angA}), \qquad p_y = AP \cdot \sin(\text{angA})$$
 
@@ -71,7 +71,7 @@ $$t_x = \text{dist} \cdot \cos(\text{angle}), \qquad t_y = \text{dist} \cdot \si
 
 Trebuchets behind the baseline have negative survey angles.
 
-### 4. Measure from the Trebuchet to the Splash
+### 4. Measure from the Trebuchet to the Impact
 
 The **Pythagorean theorem** combines the horizontal and vertical differences between the two points into one straight-line distance:
 
@@ -100,8 +100,8 @@ Yes. Your assumption is spot on: **the baseline distance between Station A and S
 Here is why:
 
 1. **The trebuchet location is fixed**: Once you set up your trebuchet and survey its distance and angle from Station A, that position is simply an offset subtraction. It shifts the reference origin, but does not alter the geometric shape of the sighting triangle.
-2. **The splash location is determined by the throw**: You cannot choose where the projectile lands.
-3. **The baseline length ($d$) dictates the convergence angle ($\text{angP}$)**: Because the spotters sight the splash from both ends of the baseline, the baseline length determines whether the sightlines form a well-defined triangle or two nearly parallel lines.
+2. **The impact location is determined by the throw**: You cannot choose where the projectile lands.
+3. **The baseline length ($d$) dictates the convergence angle ($\text{angP}$)**: Because the spotters sight the impact from both ends of the baseline, the baseline length determines whether the sightlines form a well-defined triangle or two nearly parallel lines.
 
 While sighting tool quality (such as a calibrated alidade or optical transit vs. a visual sight) also matters, baseline selection determines how severely small sighting mistakes get magnified.
 
@@ -122,7 +122,7 @@ A proven rule of thumb for field triangulation is:
 
 ### Why This Ratio Works
 
-When a projectile splashes at distance $R$ out in the lake, the apex angle at the splash is:
+When a projectile lands at distance $R$ in the target area, the apex angle at the point of impact is:
 
 $$\text{angP} = 180^\circ - \text{angA} - \text{angB}$$
 
@@ -139,7 +139,7 @@ In optical triangulation, distance error ($\Delta R$) is proportional to the squ
 $$\Delta R \approx \frac{R^2}{d} \cdot \Delta \theta$$
 
 where:
-- $R$ is the distance from the baseline to the splash.
+- $R$ is the distance from the baseline to the impact.
 - $d$ is your baseline length.
 - $\Delta \theta$ is the angular error of the spotters (in radians).
 
@@ -173,20 +173,20 @@ The point of diminishing returns usually happens when the baseline exceeds **40%
 ### 1. The Short-Shot Blindspot (Obtuse Triangle Problem)
 
 If you establish an enormous baseline (e.g. 1,000 ft) to capture 2,000 ft throws, but a trebuchet misfires or throws a short 100 or 200 ft shot:
-- The splash angle approaches **$140^\circ$ to $160^\circ$**.
-- Spotters are looking almost directly toward each other rather than out into the lake.
-- In this flattened geometry, any tiny error in angle causes massive instability in calculating whether the splash was left, right, in front of, or behind the baseline.
+- The impact angle approaches **$140^\circ$ to $160^\circ$**.
+- Spotters are looking almost directly toward each other rather than into the target area.
+- In this flattened geometry, any tiny error in angle causes massive instability in calculating whether the impact was left, right, in front of, or behind the baseline.
 
-### 2. Shoreline Curvature and Line-of-Sight
+### 2. Terrain and Line-of-Sight
 
-- Real lakeshores curve, have trees, docks, reeds, and uneven topography.
-- Finding 500 feet of unobstructed, straight line-of-sight between Station A and Station B is feasible on most parks or beaches.
-- Finding 1,500 to 2,000 feet of uninterrupted shoreline is rarely possible without sightlines being blocked by trees or headlands.
+- Real measurement sites may have uneven terrain, structures, vegetation, and other obstructions.
+- Finding 500 feet of unobstructed, straight line-of-sight between Station A and Station B is feasible at many sites.
+- Finding 1,500 to 2,000 feet of uninterrupted line-of-sight is often difficult.
 
-### 3. Spotter Coordination and Splash Visibility
+### 3. Spotter Coordination and Impact Identification
 
-- Splashes in water subside within 2 to 3 seconds.
-- Spotters separated by 1,000+ feet need clear radio communication and rapid confirmation that they are sighting the same splash ring rather than ripples, waterfowl, or wind chop.
+- The visible evidence of an impact may disappear quickly.
+- Spotters separated by 1,000+ feet need clear radio communication and rapid confirmation that they are sighting the same point of impact.
 
 ### 4. Mathematical Diminishing Returns
 
@@ -198,25 +198,25 @@ Error follows a $1/d$ curve:
 
 ### Step 1: Establish Your Baseline
 
-1. Pick two points on the shore (Station A on the left, Station B on the right when looking out at the lake).
+1. Pick two observation points (Station A on the left, Station B on the right when looking toward the target area).
 2. Measure the straight-line distance $d$ between Station A and Station B using a surveyor tape, laser rangefinder, or GPS RTK.
-3. Verify that Station A can see Station B, and both stations have clear views across the entire water landing zone.
+3. Verify that Station A can see Station B, and both stations have clear views across the entire target area.
 
 ### Step 2: Zero the Sighting Instruments
 
-- **Station A**: Sight directly at Station B and set the angle gauge to $0^\circ$. Angles sweep counterclockwise (or positive into the lake) toward the splash.
-- **Station B**: Sight directly back at Station A and set the angle gauge to $0^\circ$. Measure the positive interior angle toward the splash on the lake side (the opposite turning direction to Station A).
+- **Station A**: Sight directly at Station B and set the angle gauge to $0^\circ$. Angles sweep counterclockwise (or positive into the target area) toward the impact.
+- **Station B**: Sight directly back at Station A and set the angle gauge to $0^\circ$. Measure the positive interior angle toward the impact on the target side (the opposite turning direction to Station A).
 
 ### Step 3: Survey the Trebuchets
 
 For each trebuchet on site:
 1. Measure the straight-line distance from Station A to the pivot/release pin of the trebuchet.
-2. Measure the angle from Station A to the trebuchet relative to the baseline ($0^\circ$ along line AB toward Station B, $90^\circ$ toward the lake/water). If the trebuchet is set up on land behind the baseline, enter a negative angle (down to $-180^\circ$, where $-90^\circ$ points directly behind the baseline away from the water).
+2. Measure the angle from Station A to the trebuchet relative to the baseline ($0^\circ$ along line AB toward Station B, $90^\circ$ toward the target area). If the trebuchet is set up behind the baseline, enter a negative angle (down to $-180^\circ$, where $-90^\circ$ points directly away from the target area).
 3. Enter the name, distance, and angle in the **Trebuchet Setup** section of the tracker.
 
 ### Step 4: Live Event Logging
 
-1. When a projectile launches, spotters at Station A and Station B track the flight and lock their sights on the splash center.
+1. When a projectile launches, spotters at Station A and Station B track the flight and lock their sights on the impact center.
 2. Both spotters radio in their angle: `angA` from Station A and `angB` from Station B.
 3. The operator selects the firing trebuchet, enters the two angles, and logs the shot.
 4. Check the **Baseline Self-Check** column in the table:

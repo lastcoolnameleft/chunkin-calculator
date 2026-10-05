@@ -39,8 +39,8 @@ test('calculateShot without trebuchet defaults to Station A', () => {
 
 test('calculateShot with surveyed trebuchet calculates distance from trebuchet', () => {
   // Suppose Trebuchet is at distance 20, angle 60 from Station A.
-  // Splash is at distance 40, angle 60 from Station A.
-  // Straight line distance from Treb to Splash should be 40 - 20 = 20!
+  // Impact is at distance 40, angle 60 from Station A.
+  // Straight line distance from Treb to Impact should be 40 - 20 = 20!
   const treb = { name: 'Catapult 1', dist: 20, angle: 60 };
   const shot = calculateShot({
     angA: 60,
@@ -59,10 +59,10 @@ test('calculateShot with surveyed trebuchet calculates distance from trebuchet',
 test('calculateShot with negative angle trebuchet behind baseline', () => {
   // Trebuchet is 30 ft behind Station A at angle -90° (due south/inland).
   // tx = 30 * cos(-90°) = 0, ty = 30 * sin(-90°) = -30.
-  // Splash is at angA = 90°, angB = 45°, baseline = 30 ft.
+  // Impact is at angA = 90°, angB = 45°, baseline = 30 ft.
   // angP = 180 - 90 - 45 = 45°. AP = 30 * sin(45) / sin(45) = 30 ft.
   // px = 30 * cos(90°) = 0, py = 30 * sin(90°) = 30.
-  // Distance from trebuchet (0, -30) to splash (0, 30) = 60 ft!
+  // Distance from trebuchet (0, -30) to impact (0, 30) = 60 ft!
   const treb = { name: 'Rear Treb', dist: 30, angle: -90 };
   const pos = getTrebuchetPosition(treb);
   assert.ok(Math.abs(pos.x - 0) < 1e-5);
@@ -134,7 +134,7 @@ test('localXYToLatLng transforms local Cartesian coordinates to geodetic lat/lng
   assert.ok(Math.abs(ptA.lat - latA) < 1e-6);
   assert.ok(Math.abs(ptA.lng - lngA) < 1e-6);
 
-  // Test point with positive Y (into the water, 90° counter-clockwise from baseline)
+  // Test point with positive Y (into the target area, 90° counter-clockwise from baseline)
   // Baseline bearing is 0° (North), so 90° CCW is 270° (West)
   const ptWest = localXYToLatLng(0, 100, latA, lngA, bearingAB, 'm');
   assert.ok(ptWest);
@@ -144,5 +144,4 @@ test('localXYToLatLng transforms local Cartesian coordinates to geodetic lat/lng
   const bearingToWest = calculateBearing(latA, lngA, ptWest.lat, ptWest.lng);
   assert.ok(Math.abs(bearingToWest - 270) < 1e-2);
 });
-
 
