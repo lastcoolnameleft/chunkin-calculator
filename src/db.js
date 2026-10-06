@@ -90,6 +90,12 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
 
     // Migrate shots table if event_id column is missing
     const shotColumns = db.prepare('PRAGMA table_info(shots)').all();
+    for (const column of ['ballisticWeight', 'counterweight', 'fingerAngle']) {
+      if (!shotColumns.some(c => c.name === column)) db.exec(`ALTER TABLE shots ADD COLUMN ${column} REAL`);
+    }
+    if (!shotColumns.some(c => c.name === 'weightUnit')) {
+      db.exec("ALTER TABLE shots ADD COLUMN weightUnit TEXT CHECK (weightUnit IN ('lb', 'kg'))");
+    }
     const hasShotEventId = shotColumns.some(c => c.name === 'event_id');
     if (!hasShotEventId) {
       ensureDefaultEvent();
@@ -309,7 +315,7 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
     // Shots scoped to event
     getShots(eventId = DEFAULT_EVENT_ID) {
       const stmt = db.prepare(`
-        SELECT id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist as "check", px, py, known, created_at
+        SELECT id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist as "check", px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit, created_at
         FROM shots
         WHERE event_id = ?
         ORDER BY id ASC
@@ -319,7 +325,7 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
 
     getShotById(id, eventId = null) {
       let query = `
-        SELECT id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist as "check", px, py, known, created_at
+        SELECT id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist as "check", px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit, created_at
         FROM shots
         WHERE id = ?
       `;
@@ -332,13 +338,13 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       return stmt.get(...params) || null;
     },
 
-    addShot({ eventId = DEFAULT_EVENT_ID, label, treb_id, treb, tx, ty, angA, angB, dist, check, px, py, known }) {
+    addShot({ eventId = DEFAULT_EVENT_ID, label, treb_id, treb, tx, ty, angA, angB, dist, check, px, py, known, ballisticWeight = null, counterweight = null, fingerAngle = null, weightUnit = null }) {
       if (eventId === DEFAULT_EVENT_ID) {
         ensureDefaultEvent();
       }
       const stmt = db.prepare(`
-        INSERT INTO shots (event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist, px, py, known)
-        VALUES (@eventId, @label, @treb_id, @treb, @tx, @ty, @angA, @angB, @dist, @check, @px, @py, @known)
+        INSERT INTO shots (event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist, px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit)
+        VALUES (@eventId, @label, @treb_id, @treb, @tx, @ty, @angA, @angB, @dist, @check, @px, @py, @known, @ballisticWeight, @counterweight, @fingerAngle, @weightUnit)
       `);
       const info = stmt.run({
         eventId,
@@ -353,7 +359,8 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
         check,
         px,
         py,
-        known: known ?? null
+        known: known ?? null,
+        ballisticWeight, counterweight, fingerAngle, weightUnit
       });
       return this.getShotById(info.lastInsertRowid);
     },

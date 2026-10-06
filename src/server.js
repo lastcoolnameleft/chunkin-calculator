@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const { createDb } = require('./db');
-const { calculateShot, calculateBearing, localXYToLatLng } = require('./math');
+const { calculateShot, calculateBearing, calculateHaversineDistance, localXYToLatLng } = require('./math');
 const { hashPassword, createAuth } = require('./auth');
 const { renderGuide } = require('./guide');
 
@@ -26,16 +26,27 @@ function enrichWithGeo(point, event, unit) {
     event.station_b_lat,
     event.station_b_lng
   );
+  const gpsBaseline = calculateHaversineDistance(
+    event.station_a_lat, event.station_a_lng,
+    event.station_b_lat, event.station_b_lng, unit
+  );
+  if (!(event.baseline > 0) || !(gpsBaseline > 0)) return point;
+  // Fit the display to both GPS anchors without altering any measured coordinates or distances.
+  const overlayScale = gpsBaseline / event.baseline;
+  const overlayPosition = (x, y) => localXYToLatLng(
+    x * overlayScale, y * overlayScale,
+    event.station_a_lat, event.station_a_lng, bearingAB, unit
+  );
 
   // If point has tx, ty (e.g. shot launcher location)
   if (typeof point.tx === 'number' && typeof point.ty === 'number') {
-    const geo = localXYToLatLng(point.tx, point.ty, event.station_a_lat, event.station_a_lng, bearingAB, unit);
+    const geo = overlayPosition(point.tx, point.ty);
     point.treb_geo = geo;
     point.trebGeo = geo;
   }
   // If point has px, py (e.g. shot impact location)
   if (typeof point.px === 'number' && typeof point.py === 'number') {
-    const geo = localXYToLatLng(point.px, point.py, event.station_a_lat, event.station_a_lng, bearingAB, unit);
+    const geo = overlayPosition(point.px, point.py);
     point.impact_geo = geo;
     point.impactGeo = geo;
   }
@@ -44,7 +55,7 @@ function enrichWithGeo(point, event, unit) {
     const rad = (point.angle * Math.PI) / 180;
     const x = point.dist * Math.cos(rad);
     const y = point.dist * Math.sin(rad);
-    point.geo = localXYToLatLng(x, y, event.station_a_lat, event.station_a_lng, bearingAB, unit);
+    point.geo = overlayPosition(x, y);
   }
 
   return point;
@@ -52,6 +63,38 @@ function enrichWithGeo(point, event, unit) {
 
 function createApp(db) {
   const app = express();
+  const proxyAddresses = (process.env.TRUST_PROXY || '').split(',').map(value => value.trim()).filter(Boolean);
+  if (proxyAddresses.length) app.set('trust proxy', proxyAddresses);
+  app.disable('x-powered-by');
+  app.get('/healthz', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      db.raw.prepare('SELECT 1 FROM events LIMIT 1').get();
+      res.json({ status: 'ok', revision: process.env.APP_REVISION || 'development' });
+    } catch (err) {
+      console.error('Database health check failed:', err.message);
+      res.status(503).json({ status: 'unavailable' });
+    }
+  });
+  function shotMetadata(req, res, setup) {
+    const result = { weightUnit: setup.unit === 'm' ? 'kg' : 'lb' };
+    for (const [key, label] of [
+      ['ballisticWeight', 'Ballistic weight'], ['counterweight', 'Counterweight'], ['fingerAngle', 'Finger angle']
+    ]) {
+      const value = req.body[key];
+      if (value === undefined || value === null || value === '') {
+        result[key] = null;
+        continue;
+      }
+      const number = typeof value === 'number' || typeof value === 'string' && value.trim() ? Number(value) : NaN;
+      if (!Number.isFinite(number) || key !== 'fingerAngle' && number < 0) {
+        res.status(400).json({ error: `${label} must be ${key === 'fingerAngle' ? 'a finite number in degrees' : 'a non-negative finite number'}.` });
+        return null;
+      }
+      result[key] = number;
+    }
+    return result;
+  }
 
   app.use(express.json());
   const auth = createAuth(db);
@@ -373,6 +416,8 @@ function createApp(db) {
       }
 
       const { label, trebId, angA, angB, known } = req.body;
+      const metadata = shotMetadata(req, res, setup);
+      if (!metadata) return;
       const parsedAngA = parseFloat(angA);
       const parsedAngB = parseFloat(angB);
 
@@ -410,6 +455,7 @@ function createApp(db) {
       }
 
       const created = db.addShot({
+        ...metadata,
         eventId,
         label: computed.label,
         treb_id: treb ? treb.id : null,
@@ -555,6 +601,8 @@ function createApp(db) {
       }
 
       const { label, trebId, angA, angB, known } = req.body;
+      const metadata = shotMetadata(req, res, setup);
+      if (!metadata) return;
       const parsedAngA = parseFloat(angA);
       const parsedAngB = parseFloat(angB);
 
@@ -591,6 +639,7 @@ function createApp(db) {
       }
 
       const created = db.addShot({
+        ...metadata,
         eventId,
         label: computed.label,
         treb_id: treb ? treb.id : null,

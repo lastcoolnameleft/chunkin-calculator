@@ -31,7 +31,7 @@ The triangle tells us how far the impact is from Station A, but the trebuchet ma
 
 The **satellite map** uses optional station GPS coordinates to place station, trebuchet, and impact icons over the target area. The **schematic** shows the same layout on a simple plot without needing GPS. The icons and shot log update as new readings arrive.
 
-GPS is only used to position the map overlay. The competition distance comes from the measured baseline and the two sighting angles, not from GPS. A convincing-looking map does not guarantee accurate readings: both spotters must sight the same impact and use the correct zero direction.
+GPS is only used to position the map overlay. The layout is scaled to fit both GPS station positions, so it agrees with the schematic even if GPS puts the stations a different distance apart than the measured baseline. **The map is an illustration, not a distance measurement:** plotted locations and map distances may be inaccurate. The competition distance comes from the measured baseline, trebuchet survey, and two sighting angles entered in the forms, never from GPS. Those inputs remain unchanged by map scaling. A convincing-looking map does not guarantee accurate readings: both spotters must sight the same impact and use the correct zero direction, and calculated accuracy depends on the field measurements.
 
 ## The Math Behind the Result
 

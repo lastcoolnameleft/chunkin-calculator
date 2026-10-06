@@ -17,9 +17,18 @@ A lightweight tool used at live trebuchet-throwing events to measure projectile 
 - **Offline / Local Fallback**: Maintains a local storage cache and displays non-intrusive inline error banners if connection drops.
 - **Embedded SVG Visualization**: Live, to-scale plotting of Station A, Station B, trebuchets, and impact points.
 - **Satellite Map Markers**: Labeled station, trebuchet, and impact icons with measurement popups. Saving station GPS coordinates refreshes existing plotted points.
+- **Illustrative GPS Overlay**: Map positions are scaled to fit both station GPS anchors; the overlay may not match real-world locations or distances. Entered baseline, surveys, and angles remain authoritative for calculations and are never changed to match GPS.
 - **Lightweight & Containerized**: Node.js, Express, and SQLite with Docker and Docker Compose support.
 
 ## Workflow & Direct URLs
+
+### Design Previews
+
+**Live Scoreboard** is the default, including for browsers that used the earlier design previews. **Compare designs** and **Switch Event** are at the bottom of the page, out of the live workflow. You can still compare **Field Dashboard**, **Survey Notebook**, and the **Original layout**. Subsequent choices are remembered in that browser; switching does not reload the page or discard entered angles. All previews share the same event data and editing permissions.
+
+The new layouts put large shot-entry controls first for mobile submitters and the visualizer first for spectators, with wider dashboard layouts on desktop. Live results show the latest and longest throws. Select a shot in the log or the results selector to highlight its trajectory; optionally enable its measurement triangle in either visualizer. Trebuchets and their shots use matching colors, with older map impacts subdued. These presentation changes do not change the distance calculation.
+
+Shot logging also accepts optional **ballistic (projectile) weight**, **counterweight**, and **finger (release pin) angle** in degrees. Weight units are lb for feet-based events and kg for meter-based events, saved with each shot so changing event units does not relabel historical weights. These values are recorded in both views and CSV export; they do not affect triangulation. Both event-scoped and legacy shot APIs accept `ballisticWeight`, `counterweight`, and `fingerAngle`; omitted or blank values are stored as null.
 
 1. **Create an Event**: Enter an event name, optional baseline, and optional editing password. Leaving the password blank allows anyone with the editor URL to modify the event.
 2. **Share Spectator Link**: Copy the spectator URL at the top of the tracker. Spectators see the baseline, surveyed trebuchets, shot log, and both visualizers, without editing controls. Data refreshes every three seconds; a connection status warns when updates stop.
@@ -47,7 +56,7 @@ The website's **How this works** link opens `/how-it-works/`, which renders that
 
 ### Local Node.js
 
-Requires Node.js 20+.
+Use Node.js 22 (the production image and CI use Node.js 22).
 
 ```bash
 # 1. Install dependencies
@@ -79,13 +88,15 @@ The runner loads `.env` when present. `PORT` sets the browser-facing port (defau
 
 ### Docker Compose
 
-Run with Docker Compose with persistent data volume mounted to `./data`:
+Compose is configured for your production server's shared Traefik network, not a publicly exposed localhost port. See [Production Deployment](docs/production-deployment.md) for first-time setup, GitHub secrets, empty database provisioning, backup/restore, and rollback.
 
 ```bash
-docker compose up --build
+docker compose config --quiet
+docker compose pull
+docker compose up -d
 ```
 
-The application will be available at [http://localhost:3000](http://localhost:3000).
+The production hostname is [https://distance.dfwtrebuchet.com](https://distance.dfwtrebuchet.com).
 
 ## Environment Variables
 
@@ -93,8 +104,12 @@ Copy `.env.example` to `.env` to configure:
 
 - `PORT`: HTTP port for the web server (default: `3000`).
 - `DB_PATH`: SQLite database file path (default: `./data/tracker.db`).
+- `TRUST_PROXY`: Comma-separated trusted proxy IP addresses/CIDRs. Unset means no proxy trust for direct local development; production Compose requires the actual shared Traefik network CIDR.
+- Production Compose variables: `IMAGE`, `DATA_DIR`, `COMPOSE_PROJECT_NAME`, `TRAEFIK_HOST`, `TRAEFIK_NETWORK`, and `TRAEFIK_CERT_RESOLVER`; see `.env.example`. Compose loads `.env` automatically; `npm start` uses exported environment variables.
 
 ## API Endpoints
+
+- `GET /healthz` - Database-aware readiness check (`200` when ready, `503` when unavailable); does not create or modify events.
 
 ### Events & Scoped Tracking
 

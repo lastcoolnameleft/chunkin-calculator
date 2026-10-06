@@ -60,7 +60,10 @@ test('GET and POST /api/setup', async () => {
   });
   assert.strictEqual(res.status, 200);
   data = await res.json();
-  assert.deepStrictEqual(data, { baseline: 40, unit: 'ft' });
+  assert.deepStrictEqual(data, {
+    baseline: 40, unit: 'ft',
+    station_a_lat: null, station_a_lng: null, station_b_lat: null, station_b_lng: null
+  });
 });
 
 test('Trebuchet CRUD endpoints', async () => {
@@ -306,20 +309,20 @@ test('GPS station setup and geo-enrichment on trebuchets and shots', async () =>
   });
   assert.strictEqual(res.status, 201);
   const event = await res.json();
-  assert.strictEqual(event.stationALat, 42.123456);
-  assert.strictEqual(event.stationALng, -71.654321);
-  assert.strictEqual(event.stationBLat, 42.123906);
-  assert.strictEqual(event.stationBLng, -71.654321);
+  assert.strictEqual(event.station_a_lat, 42.123456);
+  assert.strictEqual(event.station_a_lng, -71.654321);
+  assert.strictEqual(event.station_b_lat, 42.123906);
+  assert.strictEqual(event.station_b_lng, -71.654321);
 
-  // Verify setup endpoint returns GPS fields and calculated gpsDistance
+  // Setup exposes the stored anchors, not a GPS-derived scoring baseline.
   res = await fetch(`${baseUrl}/api/events/${event.id}/setup`);
   assert.strictEqual(res.status, 200);
   let setup = await res.json();
-  assert.strictEqual(setup.stationALat, 42.123456);
-  assert.strictEqual(setup.stationALng, -71.654321);
-  assert.strictEqual(setup.stationBLat, 42.123906);
-  assert.strictEqual(setup.stationBLng, -71.654321);
-  assert.ok(setup.gpsDistance > 0);
+  assert.strictEqual(setup.station_a_lat, 42.123456);
+  assert.strictEqual(setup.station_a_lng, -71.654321);
+  assert.strictEqual(setup.station_b_lat, 42.123906);
+  assert.strictEqual(setup.station_b_lng, -71.654321);
+  assert.strictEqual(setup.baseline, 50);
 
   // Update setup via POST /api/events/:id/setup
   res = await fetch(`${baseUrl}/api/events/${event.id}/setup`, {
@@ -336,7 +339,7 @@ test('GPS station setup and geo-enrichment on trebuchets and shots', async () =>
   });
   assert.strictEqual(res.status, 200);
   setup = await res.json();
-  assert.strictEqual(setup.stationALat, 42.123400);
+  assert.strictEqual(setup.station_a_lat, 42.123400);
 
   // Add a trebuchet - verify geo property is enriched
   res = await fetch(`${baseUrl}/api/events/${event.id}/trebuchets`, {
@@ -364,19 +367,17 @@ test('GPS station setup and geo-enrichment on trebuchets and shots', async () =>
   });
   assert.strictEqual(res.status, 201);
   const shot = await res.json();
-  assert.ok(shot.geo);
-  assert.ok(typeof shot.geo.impactLat === 'number');
-  assert.ok(typeof shot.geo.impactLng === 'number');
-  assert.ok(typeof shot.geo.trebLat === 'number');
-  assert.ok(typeof shot.geo.trebLng === 'number');
+  assert.ok(typeof shot.impactGeo.lat === 'number');
+  assert.ok(typeof shot.impactGeo.lng === 'number');
+  assert.ok(typeof shot.trebGeo.lat === 'number');
+  assert.ok(typeof shot.trebGeo.lng === 'number');
 
   // List shots - verify geo enrichment persists
   res = await fetch(`${baseUrl}/api/events/${event.id}/shots`);
   const shots = await res.json();
   assert.strictEqual(shots.length, 1);
-  assert.ok(shots[0].geo);
+  assert.deepStrictEqual(shots[0].impactGeo, shot.impactGeo);
 
   // Clean up
   await fetch(`${baseUrl}/api/events/${event.id}`, { method: 'DELETE' });
 });
-

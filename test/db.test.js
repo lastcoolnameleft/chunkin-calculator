@@ -1,18 +1,21 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { createDb } = require('../src/db.js');
+const expectedSetup = (baseline, unit) => ({
+  baseline, unit, station_a_lat: null, station_a_lng: null, station_b_lat: null, station_b_lng: null
+});
 
 test('db setup CRUD works', () => {
   const db = createDb(':memory:');
   assert.strictEqual(db.getSetup(), null);
 
   const saved = db.saveSetup(50, 'ft');
-  assert.deepStrictEqual(saved, { baseline: 50, unit: 'ft' });
+  assert.deepStrictEqual(saved, expectedSetup(50, 'ft'));
 
   const updated = db.saveSetup(25, 'm');
-  assert.deepStrictEqual(updated, { baseline: 25, unit: 'm' });
+  assert.deepStrictEqual(updated, expectedSetup(25, 'm'));
 
-  assert.deepStrictEqual(db.getSetup(), { baseline: 25, unit: 'm' });
+  assert.deepStrictEqual(db.getSetup(), expectedSetup(25, 'm'));
   db.close();
 });
 
@@ -110,9 +113,9 @@ test('db events and event-scoped CRUD works', () => {
   assert.strictEqual(db.getEvents().length, 2);
 
   // Setup per event
-  assert.deepStrictEqual(db.getSetup(ev1.id), { baseline: 60, unit: 'ft' });
+  assert.deepStrictEqual(db.getSetup(ev1.id), expectedSetup(60, 'ft'));
   db.saveSetup(ev1.id, 75, 'm');
-  assert.deepStrictEqual(db.getSetup(ev1.id), { baseline: 75, unit: 'm' });
+  assert.deepStrictEqual(db.getSetup(ev1.id), expectedSetup(75, 'm'));
 
   // Trebuchets per event
   const t1 = db.addTrebuchet(ev1.id, 'Treb 1', 10, 45);
@@ -150,4 +153,3 @@ test('db events and event-scoped CRUD works', () => {
 
   db.close();
 });
-

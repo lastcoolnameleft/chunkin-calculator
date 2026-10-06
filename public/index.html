@@ -117,14 +117,12 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
 .map-legend span{display:inline-flex; align-items:center; gap:4px;}
 .dot-indicator{width:10px; height:10px; border-radius:50%; display:inline-block;}
 </style>
+<link rel="stylesheet" href="/designs.css">
 </head>
 <body>
 <div class="wrap">
   <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
     <h1>Impact Distance Tracker</h1>
-    <div id="switchEventContainer" class="submitter-only" style="display:none;">
-      <button class="secondary" style="padding:4px 10px; font-size:.8rem;" onclick="showEventPicker()">Switch Event</button>
-    </div>
   </div>
   <p class="sub" id="mainSubtitle">Triangulate trebuchet landing distance from two observation stations — spotters read one angle each, no math required on their end.</p>
   <p class="tiny"><a href="/how-it-works/" target="_blank" rel="noopener">How this works: a plain-language guide and the math</a></p>
@@ -184,11 +182,11 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
         <button type="submit">Unlock</button>
       </form>
     </div>
-    <div class="card">
+    <div class="card" id="eventSummaryCard">
       <h2 id="eventSummaryName">Event</h2>
       <p class="setup-status" id="eventSummarySetup"></p>
     </div>
-    <details class="card editor-only">
+    <details class="card editor-only" id="accessCard">
       <summary>Editing access</summary>
       <p class="tiny" id="accessNotice"></p>
       <form class="row" onsubmit="changePassword(event)">
@@ -272,7 +270,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       </table>
     </div>
 
-    <div class="card editor-only">
+    <div class="card editor-only" id="shotEntryCard">
       <h2>3. Log a shot</h2>
       <div class="row">
         <div class="field"><label for="label">Shot label</label><input type="text" id="label" placeholder="Shot 1"></div>
@@ -282,7 +280,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
             <label for="angA">Angle at Station A (°)</label>
             <button type="button" class="angle-help" aria-label="Help with Station A angle" aria-expanded="false" aria-controls="angAHelp" onclick="toggleAngleHelp(this)">?</button>
           </div>
-          <input type="number" id="angA" step="0.1" min="0" max="179" aria-describedby="angAHelp">
+          <input type="number" id="angA" inputmode="decimal" step="0.1" min="0" max="179" aria-describedby="angAHelp">
           <p class="angle-explanation" id="angAHelp" popover>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>impact</strong>. Report the angle between the A→B sight line and the A→impact sight line, with the corner at A. Do not measure from the trebuchet or use an absolute compass bearing. Example: a quarter-turn from B toward the impact is 90°.</p>
         </div>
         <div class="field">
@@ -290,21 +288,24 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
             <label for="angB">Angle at Station B (°)</label>
             <button type="button" class="angle-help" aria-label="Help with Station B angle" aria-expanded="false" aria-controls="angBHelp" onclick="toggleAngleHelp(this)">?</button>
           </div>
-          <input type="number" id="angB" step="0.1" min="0" max="179" aria-describedby="angBHelp">
+          <input type="number" id="angB" inputmode="decimal" step="0.1" min="0" max="179" aria-describedby="angBHelp">
           <p class="angle-explanation" id="angBHelp" popover>Stand at <strong>Station B</strong>. Aim toward <strong>Station A</strong> to set 0°, then turn toward the <strong>impact</strong>. Report the angle between the B→A sight line and the B→impact sight line, with the corner at B. Do not measure from the trebuchet or use the A→B direction as your zero. Both impact angles must be greater than 0° and add up to less than 180°.</p>
         </div>
         <div class="field"><label for="known">Known actual distance (optional — for testing)</label><input type="number" id="known" step="0.1" min="0"></div>
-        <button onclick="addShot()">Add shot</button>
+        <div class="field"><label for="ballisticWeight">Ballistic weight (<span class="weight-unit">lb</span>, optional)</label><input type="number" id="ballisticWeight" inputmode="decimal" step="any" min="0"></div>
+        <div class="field"><label for="counterweight">Counterweight (<span class="weight-unit">lb</span>, optional)</label><input type="number" id="counterweight" inputmode="decimal" step="any" min="0"></div>
+        <div class="field"><label for="fingerAngle">Finger angle (°, optional)</label><input type="number" id="fingerAngle" step="any" placeholder="Release pin angle"></div>
+        <button class="submit-shot" onclick="addShot()">Add shot</button>
       </div>
       <div id="lastResult"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="shotLogCard">
       <h2>Shot log</h2>
       <div class="scroll">
       <table id="shotTable">
-        <thead><tr><th>Shot</th><th>Trebuchet</th><th class="num">∠A</th><th class="num">∠B</th><th class="num">Distance</th><th class="num">Baseline check</th><th class="num">Error</th><th class="action editor-only"></th></tr></thead>
-        <tbody id="shotBody"><tr><td colspan="8" class="empty">No shots logged yet.</td></tr></tbody>
+        <thead><tr><th>Shot</th><th>Trebuchet</th><th class="num">∠A</th><th class="num">∠B</th><th class="num">Distance</th><th class="num">Baseline check</th><th class="num">Error</th><th class="num">Ballistic weight</th><th class="num">Counterweight</th><th class="num">Finger angle</th><th class="action editor-only"></th></tr></thead>
+        <tbody id="shotBody"><tr><td colspan="11" class="empty">No shots logged yet.</td></tr></tbody>
       </table>
       </div>
       <div class="row" style="margin-top:12px">
@@ -314,6 +315,27 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       <textarea id="csvBox" readonly style="display:none; margin-top:10px"></textarea>
     </div>
 
+    <div class="card" id="resultsCard">
+      <h2>Live results</h2>
+      <div class="result-panel">
+        <span class="metric-label">Latest throw</span>
+        <strong class="metric-value" id="latestDistance">—</strong>
+        <span id="latestDescription">Waiting for the first shot</span>
+      </div>
+      <div class="result-panel">
+        <span class="metric-label">Longest throw</span>
+        <strong class="metric-value" id="longestDistance">—</strong>
+        <span id="longestDescription">No shots yet</span>
+      </div>
+      <div class="result-panel">
+        <span class="metric-label">On the visualizer</span>
+        <select id="highlightShot" aria-label="Highlighted shot" onchange="highlightShot(this.value)">
+          <option value="">Follow latest shot</option>
+        </select>
+        <p class="tiny" id="highlightDescription">Select a shot to inspect its distance and readings.</p>
+      </div>
+    </div>
+
     <div class="card" id="visualizerCard">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
         <h2 style="margin:0;">Visualizer</h2>
@@ -321,6 +343,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <button type="button" class="view-toggle-btn" id="btnSchematicView" onclick="switchVisualizerView('schematic')">Schematic</button>
           <button type="button" class="view-toggle-btn active" id="btnMapView" onclick="switchVisualizerView('map')">Satellite Map</button>
         </div>
+        <label class="triangle-control"><input type="checkbox" id="showTriangle" onchange="renderDiagram();renderMap()"> Show measurement triangle for highlighted shot</label>
       </div>
 
       <!-- Schematic SVG View -->
@@ -341,6 +364,21 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       </div>
     </div>
   </div>
+  <footer class="page-controls">
+    <div id="switchEventContainer" class="submitter-only" style="display:none;">
+      <button type="button" class="secondary" onclick="showEventPicker()">Switch Event</button>
+    </div>
+    <div class="design-picker">
+      <label for="designSelect">Compare designs</label>
+      <select id="designSelect" onchange="changeDesign(this.value)">
+        <option value="scoreboard">Live Scoreboard</option>
+        <option value="field">Field Dashboard</option>
+        <option value="notebook">Survey Notebook</option>
+        <option value="classic">Original layout</option>
+      </select>
+      <span id="designDescription"></span>
+    </div>
+  </footer>
 </div>
 
 <script>
@@ -375,6 +413,61 @@ window.addEventListener('scroll', repositionAngleHelp, true);
 let currentEventId = null;
 let currentEvent = null;
 let setup = null, shots = [], trebs = [];
+let selectedShotId = null;
+let design = 'scoreboard';
+const designDescriptions = {
+  field: 'Warm, map-led dashboard. Large controls for field use.',
+  scoreboard: 'Bold live results, high contrast, and prominent distances.',
+  notebook: 'A precise field notebook with a survey-style visualizer.',
+  classic: 'The original compact, single-column interface.'
+};
+function changeDesign(value) {
+  design = Object.hasOwn(designDescriptions, value) ? value : 'scoreboard';
+  document.documentElement.dataset.design = design;
+  $('designSelect').value = design;
+  $('designDescription').textContent = designDescriptions[design];
+  try {
+    localStorage.setItem('td_design_v2', design);
+  } catch (err) {
+    showInlineError(`Cannot save design preference: ${err.message}`);
+  }
+  if (leafletMap) requestAnimationFrame(() => {
+    leafletMap.invalidateSize();
+    renderMap();
+  });
+}
+function activeShot() {
+  return shots.find(shot => shot.id === selectedShotId) || shots[shots.length - 1];
+}
+function highlightShot(value) {
+  selectedShotId = value ? Number(value) : null;
+  renderTable();
+  renderDiagram();
+  if (currentVisualizerView === 'map') renderMap();
+}
+function trebColor(treb) {
+  const palette = ['#b65d13', '#287d90', '#8056ae', '#3e8052', '#ae4565', '#6a6d24'];
+  const name = typeof treb === 'string' ? treb : treb?.treb || treb?.name || 'Station A';
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return palette[hash % palette.length];
+}
+function renderResults() {
+  if (selectedShotId !== null && !shots.some(shot => shot.id === selectedShotId)) selectedShotId = null;
+  const latest = shots[shots.length - 1];
+  const longest = shots.reduce((best, shot) => !best || shot.dist > best.dist ? shot : best, null);
+  for (const [prefix, shot] of [['latest', latest], ['longest', longest]]) {
+    $(`${prefix}Distance`).textContent = shot ? `${shot.dist.toFixed(1)} ${setup?.unit || currentEvent?.unit || ''}` : '—';
+    $(`${prefix}Description`).textContent = shot ? `${shot.label} · ${shot.treb || 'Station A'}` : 'Waiting for the first shot';
+  }
+  $('highlightShot').innerHTML = '<option value="">Follow latest shot</option>' +
+    shots.map(shot => `<option value="${shot.id}">${escapeHtml(shot.label)} · ${escapeHtml(shot.treb)}</option>`).join('');
+  $('highlightShot').value = selectedShotId === null ? '' : String(selectedShotId);
+  const active = activeShot();
+  $('highlightDescription').textContent = active
+    ? `${active.treb}: ${active.dist.toFixed(1)} ${setup?.unit || ''} · A ${active.angA}° · B ${active.angB}°`
+    : 'Select a shot to inspect its distance and readings.';
+}
 let spectator = /\/spectator\/?$/.test(window.location.pathname);
 let editable = false;
 let passwordProtected = false;
@@ -591,6 +684,7 @@ async function handleCreateEvent() {
 }
 
 function selectEvent(eventId) {
+  selectedShotId = null;
   spectator = false;
   editable = false;
   currentEvent = null;
@@ -895,6 +989,10 @@ function captureStationGps(station) {
 }
 
 function renderSetup() {
+  renderResults();
+  document.querySelectorAll('.weight-unit').forEach(element => {
+    element.textContent = (setup?.unit || currentEvent?.unit) === 'm' ? 'kg' : 'lb';
+  });
   $('eventSummarySetup').textContent = setup?.baseline
     ? `Baseline: ${setup.baseline} ${setup.unit} between Stations A and B. Distances below are in ${setup.unit}.`
     : 'No baseline saved yet.';
@@ -1014,12 +1112,20 @@ async function addShot() {
   const known = knownVal !== '' ? parseFloat(knownVal) : null;
   const label = $('label').value.trim();
   const trebId = $('trebSelect').value || null;
+  const metadata = Object.fromEntries(['ballisticWeight', 'counterweight', 'fingerAngle'].map(key =>
+    [key, $(key).value === '' ? null : Number($(key).value)]));
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== null && (!Number.isFinite(value) || key !== 'fingerAngle' && value < 0)) {
+      showInlineError('Enter valid optional shot details: weights must be non-negative numbers and finger angle must be a number.');
+      return;
+    }
+  }
 
   try {
     const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, trebId, angA, angB, known })
+      body: JSON.stringify({ label, trebId, angA, angB, known, ...metadata })
     });
 
     const data = await res.json();
@@ -1036,6 +1142,7 @@ async function addShot() {
     $('angA').value = '';
     $('angB').value = '';
     $('known').value = '';
+    for (const key of Object.keys(metadata)) $(key).value = '';
 
     renderTable();
     renderDiagram();
@@ -1046,14 +1153,16 @@ async function addShot() {
 }
 
 function renderTable() {
+  renderResults();
   const body = $('shotBody');
   if (!shots.length) {
-    body.innerHTML = `<tr><td colspan="${editable && !spectator ? 8 : 7}" class="empty">No shots logged yet.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="${editable && !spectator ? 11 : 10}" class="empty">No shots logged yet.</td></tr>`;
     return;
   }
   body.innerHTML = shots.map(s => {
     const err = s.known ? (100 * Math.abs(s.dist - s.known) / s.known).toFixed(1) + '%' : '—';
-    return `<tr><td>${escapeHtml(s.label)}</td><td>${escapeHtml(s.treb || 'Station A')}</td><td class="num">${s.angA}°</td><td class="num">${s.angB}°</td><td class="num">${s.dist.toFixed(1)}</td><td class="num">${s.check.toFixed(1)}</td><td class="num">${err}</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delShot(${s.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`;
+    const weight = value => value == null ? '—' : `${value} ${s.weightUnit || ''}`;
+    return `<tr${s.id === activeShot()?.id ? ' class="highlighted-shot"' : ''}><td><button type="button" class="shot-link" onclick="highlightShot('${s.id}')" aria-label="Highlight ${escapeHtml(s.label)}">${escapeHtml(s.label)}</button></td><td><span class="treb-swatch" style="background:${trebColor(s)}"></span>${escapeHtml(s.treb || 'Station A')}</td><td class="num">${s.angA}°</td><td class="num">${s.angB}°</td><td class="num">${s.dist.toFixed(1)}</td><td class="num">${s.check.toFixed(1)}</td><td class="num">${err}</td><td class="num">${weight(s.ballisticWeight)}</td><td class="num">${weight(s.counterweight)}</td><td class="num">${s.fingerAngle == null ? '—' : `${s.fingerAngle}°`}</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delShot(${s.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`;
   }).join('');
 }
 
@@ -1101,9 +1210,9 @@ async function clearAll() {
 function showCsv() {
   const box = $('csvBox');
   const unit = setup ? setup.unit : '';
-  let csv = `Shot,Trebuchet,Angle A (deg),Angle B (deg),Distance (${unit}),Baseline check (${unit}),Known distance (${unit})\n`;
+  let csv = `Shot,Trebuchet,Angle A (deg),Angle B (deg),Distance (${unit}),Baseline check (${unit}),Known distance (${unit}),Ballistic weight,Counterweight,Weight unit,Finger angle (deg)\n`;
   shots.forEach(s => {
-    csv += `${s.label},${s.treb || 'Station A'},${s.angA},${s.angB},${s.dist.toFixed(2)},${s.check.toFixed(2)},${s.known ?? ''}\n`;
+    csv += `${s.label},${s.treb || 'Station A'},${s.angA},${s.angB},${s.dist.toFixed(2)},${s.check.toFixed(2)},${s.known ?? ''},${s.ballisticWeight ?? ''},${s.counterweight ?? ''},${s.weightUnit ?? ''},${s.fingerAngle ?? ''}\n`;
   });
   box.value = csv;
   box.style.display = 'block';
@@ -1153,13 +1262,14 @@ function renderDiagram() {
 
   let pts = (shots || []).map(s => {
     const x = ox + s.px * scale, y = oy - s.py * scale;
-    return `<circle cx="${x}" cy="${y}" r="4" fill="var(--amber)"/><text x="${x + 6}" y="${y - 4}" font-size="10" fill="var(--ink)" font-family="Georgia">${escapeHtml(s.label)}</text>`;
+    const active = s.id === activeShot()?.id;
+    return `<circle cx="${x}" cy="${y}" r="${active ? 6 : 4}" fill="${trebColor(s)}" opacity="${active ? 1 : .55}" stroke="var(--ink)" stroke-width="${active ? 1.5 : 0}"/><text x="${x + 8}" y="${y - 4}" font-size="10" fill="var(--ink)" font-family="Georgia">${escapeHtml(s.label)}</text>`;
   }).join('');
 
   let tpts = (trebs || []).map((t, i) => {
     const p = trebPts[i];
     const x = ox + p.x * scale, y = oy - p.y * scale;
-    return `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="var(--danger)"/><text x="${x + 7}" y="${y + 3}" font-size="10" fill="var(--danger)" font-family="Georgia">${escapeHtml(t.name)}</text>`;
+    return `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="${trebColor(t)}"/><text x="${x + 7}" y="${y + 3}" font-size="10" fill="var(--ink)" font-family="Georgia">${escapeHtml(t.name)}</text>`;
   }).join('');
 
   const baselineMarkup = hasBaseline ? `
@@ -1184,6 +1294,15 @@ function renderDiagram() {
     ${pts}
     ${emptyHint}
   `;
+  const active = activeShot();
+  if (active) {
+    const x = ox + active.px * scale, y = oy - active.py * scale;
+    const tx = ox + active.tx * scale, ty = oy - active.ty * scale;
+    svg.innerHTML += `<line x1="${tx}" y1="${ty}" x2="${x}" y2="${y}" stroke="${trebColor(active)}" stroke-width="2"/>`;
+    if ($('showTriangle').checked && hasBaseline) {
+      svg.innerHTML += `<path d="M${Ax},${Ay} L${x},${y} L${Bx},${By}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+    }
+  }
 }
 
 let currentVisualizerView = 'map'; // 'schematic' | 'map'
@@ -1265,7 +1384,13 @@ function renderMap() {
     return;
   }
 
-  notice.innerHTML = 'Showing satellite overlay using Station A &amp; B anchors. Distance measurements remain authoritatively determined by optical triangulation.';
+  if (!(setup.baseline > 0) || (setup.station_a_lat === setup.station_b_lat &&
+      setup.station_a_lng === setup.station_b_lng)) {
+    notice.textContent = 'Map overlay unavailable: a positive measured baseline and two distinct GPS station positions are needed. GPS does not change calculated distances.';
+    leafletMap.setView([setup.station_a_lat, setup.station_a_lng], 16);
+    return;
+  }
+  notice.textContent = 'Showing satellite overlay for illustration only. Positions are scaled to the GPS stations and may not match actual landing locations or map distances. Results use the baseline, surveys, and angles entered in the forms, never GPS; their accuracy depends on those field measurements.';
 
   const bounds = L.latLngBounds();
 
@@ -1297,7 +1422,7 @@ function renderMap() {
       const posT = [t.geo.lat, t.geo.lng];
       bounds.extend(posT);
       const markerT = createMapMarker(posT, 'trebuchet', t.name,
-        `<b>Trebuchet: ${escapeHtml(t.name)}</b><br>Dist from A: ${t.dist} ${setup.unit || ''}<br>Angle: ${t.angle}°`);
+        `<b>Trebuchet: ${escapeHtml(t.name)}</b><br>Dist from A: ${t.dist} ${setup.unit || ''}<br>Angle: ${t.angle}°`, '', trebColor(t));
       mapLayerGroup.addLayer(markerT);
     }
   });
@@ -1308,7 +1433,7 @@ function renderMap() {
       const posS = [s.impactGeo.lat, s.impactGeo.lng];
       bounds.extend(posS);
       const markerS = createMapMarker(posS, 'impact', s.label,
-        `<b>${escapeHtml(s.label)} (${escapeHtml(s.treb || 'Station A')})</b><br>Distance: ${s.dist.toFixed(1)} ${setup.unit || ''}<br>Check: ${s.check.toFixed(1)} ${setup.unit || ''}`);
+        `<b>${escapeHtml(s.label)} (${escapeHtml(s.treb || 'Station A')})</b><br>Distance: ${s.dist.toFixed(1)} ${setup.unit || ''}<br>Check: ${s.check.toFixed(1)} ${setup.unit || ''}`, '', trebColor(s), s.id === activeShot()?.id ? 1 : .55);
       mapLayerGroup.addLayer(markerS);
 
       // Trajectory line from firing origin (treb or Station A) to impact
@@ -1317,11 +1442,16 @@ function renderMap() {
         originPos = [s.trebGeo.lat, s.trebGeo.lng];
       }
       const traj = L.polyline([originPos, posS], {
-        color: '#c9832f',
-        weight: 1.5,
-        opacity: 0.7
+        color: trebColor(s),
+        weight: s.id === activeShot()?.id ? 3 : 1,
+        opacity: s.id === activeShot()?.id ? .95 : .25
       });
       mapLayerGroup.addLayer(traj);
+      if (s.id === activeShot()?.id && $('showTriangle').checked) {
+        mapLayerGroup.addLayer(L.polyline([posA, posS, posB], {
+          color: '#287d90', weight: 2, dashArray: '6, 4', className: 'measurement-triangle'
+        }));
+      }
     }
   });
 
@@ -1330,7 +1460,7 @@ function renderMap() {
   }
 }
 
-function createMapMarker(position, kind, label, popup, letter = '') {
+function createMapMarker(position, kind, label, popup, letter = '', color = '#c9832f', opacity = 1) {
   const symbols = {
     station: `<circle cx="16" cy="16" r="13" fill="#2f6f7a" stroke="white" stroke-width="2"/><text x="16" y="21" text-anchor="middle" fill="white" font-family="Trebuchet MS,sans-serif" font-size="15" font-weight="bold">${letter}</text>`,
     trebuchet: '<rect x="2" y="2" width="28" height="28" rx="4" fill="#c9832f" stroke="white" stroke-width="2"/><path d="M8 25h16M10 24l6-12 6 12M7 9l18 7M8 9v8" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>',
@@ -1339,15 +1469,16 @@ function createMapMarker(position, kind, label, popup, letter = '') {
   return L.marker(position, {
     title: label,
     alt: label,
+    opacity,
     icon: L.divIcon({
       className: `event-map-marker event-map-${kind}`,
-      html: `<svg viewBox="0 0 32 32" aria-hidden="true">${symbols[kind]}</svg>`,
+      html: `<svg viewBox="0 0 32 32" aria-hidden="true">${symbols[kind].replace(/#c9832f|#173a52/g, color)}</svg>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
       popupAnchor: [0, -16]
     })
   }).bindPopup(popup).bindTooltip(escapeHtml(label), {
-    permanent: true,
+    permanent: kind !== 'impact' || opacity === 1 || design === 'classic',
     direction: 'right',
     offset: [16, 0],
     className: 'event-map-label'
@@ -1356,6 +1487,7 @@ function createMapMarker(position, kind, label, popup, letter = '') {
 
 // Handle browser popstate navigation
 window.addEventListener('popstate', (e) => {
+  selectedShotId = null;
   spectator = /\/spectator\/?$/.test(window.location.pathname);
   editable = false;
   currentEvent = null;
@@ -1376,6 +1508,12 @@ window.addEventListener('popstate', (e) => {
 });
 
 // Initial boot logic
+try {
+  design = localStorage.getItem('td_design_v2') || 'scoreboard';
+} catch (err) {
+  console.warn('Cannot read design preference:', err);
+}
+changeDesign(design);
 const initialEventId = detectEventId();
 if (initialEventId) {
   currentEventId = initialEventId;

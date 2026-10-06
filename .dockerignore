@@ -8,3 +8,11 @@ data/*.db-shm
 .gitignore
 .env
 tmp/
+test-results/
+playwright-report/
+e2e/
+test/
+.github/
+scripts/
+.env.*
+!.env.example

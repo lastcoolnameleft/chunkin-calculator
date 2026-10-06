@@ -1,11 +1,33 @@
+name: ${COMPOSE_PROJECT_NAME:-chunkin-calculator}
+
 services:
   app:
-    build: .
-    ports:
-      - "3000:3000"
+    image: ${IMAGE:-ghcr.io/lastcoolnameleft/chunkin-calculator:latest}
     environment:
-      - PORT=3000
-      - DB_PATH=/app/data/tracker.db
+      NODE_ENV: production
+      PORT: "3000"
+      DB_PATH: /app/data/tracker.db
+      TRUST_PROXY: ${TRUST_PROXY:?Set TRUST_PROXY to the trusted Traefik network CIDR}
     volumes:
-      - ./data:/app/data
+      - ${DATA_DIR:-./data}:/app/data
+    networks:
+      - traefik
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-chunkin-calculator}.rule=Host(`${TRAEFIK_HOST:-distance.dfwtrebuchet.com}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-chunkin-calculator}.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME:-chunkin-calculator}.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-myresolver}"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME:-chunkin-calculator}.loadbalancer.server.port=3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     restart: unless-stopped
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}

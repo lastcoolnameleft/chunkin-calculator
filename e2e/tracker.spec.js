@@ -62,6 +62,8 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await page.getByRole('button', { name: 'Save setup', exact: true }).click();
   await expect(spectator.locator('#eventSummarySetup')).toContainText('75 m', { timeout: 10000 });
   await expect(spectator.locator('#mapNotice')).toContainText('Showing satellite overlay');
+  await expect(spectator.locator('#mapNotice')).toContainText('illustration only');
+  await expect(spectator.locator('#mapNotice')).toContainText('never GPS');
   await expect(page.locator('.event-map-marker')).toHaveCount(4);
   await expect(spectator.locator('.event-map-station')).toHaveCount(2);
   await expect(spectator.locator('.event-map-trebuchet')).toHaveCount(1);
@@ -73,7 +75,8 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await expect(spectator.locator('.event-map-trebuchet')).toBeInViewport();
   await expect(spectator.locator('.event-map-impact')).toBeInViewport();
   await expect(spectator.locator('.leaflet-overlay-pane svg')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-  await spectator.locator('.event-map-trebuchet').click();
+  await spectator.locator('.event-map-trebuchet').focus();
+  await spectator.locator('.event-map-trebuchet').press('Enter');
   await expect(spectator.locator('.leaflet-popup')).toContainText('Dist from A: 20 m');
   const previousPositions = await page.evaluate(() =>
     mapLayerGroup.getLayers().filter(layer => layer instanceof L.Marker).map(layer => layer.getLatLng()));
