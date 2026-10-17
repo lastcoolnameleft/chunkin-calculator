@@ -127,6 +127,25 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
   <p class="sub" id="mainSubtitle">Triangulate trebuchet landing distance from two observation stations — spotters read one angle each, no math required on their end.</p>
   <p class="tiny"><a href="/how-it-works/" target="_blank" rel="noopener">How this works: a plain-language guide and the math</a></p>
 
+  <div class="design-picker" role="group" aria-label="Design preview">
+    <div class="design-picker-heading">
+      <label for="designSelect">Compare designs</label>
+      <span class="design-preview-note">Same event. Different look.</span>
+    </div>
+    <select id="designSelect" aria-describedby="designDescription" onchange="changeDesign(this.value)">
+      <optgroup label="Modern designs">
+        <option value="field">Modern Field Kit</option>
+        <option value="scoreboard">Live Scoreboard</option>
+        <option value="bright">Clean &amp; Bright</option>
+      </optgroup>
+      <optgroup label="Earlier designs">
+        <option value="notebook">Survey Notebook</option>
+        <option value="classic">Original layout</option>
+      </optgroup>
+    </select>
+    <span id="designDescription" role="status"></span>
+  </div>
+
   <div id="globalError" class="error-banner"></div>
 
   <!-- Event Selection / Creation View -->
@@ -368,16 +387,6 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
     <div id="switchEventContainer" class="submitter-only" style="display:none;">
       <button type="button" class="secondary" onclick="showEventPicker()">Switch Event</button>
     </div>
-    <div class="design-picker">
-      <label for="designSelect">Compare designs</label>
-      <select id="designSelect" onchange="changeDesign(this.value)">
-        <option value="scoreboard">Live Scoreboard</option>
-        <option value="field">Field Dashboard</option>
-        <option value="notebook">Survey Notebook</option>
-        <option value="classic">Original layout</option>
-      </select>
-      <span id="designDescription"></span>
-    </div>
   </footer>
 </div>
 
@@ -416,8 +425,9 @@ let setup = null, shots = [], trebs = [];
 let selectedShotId = null;
 let design = 'scoreboard';
 const designDescriptions = {
-  field: 'Warm, map-led dashboard. Large controls for field use.',
-  scoreboard: 'Bold live results, high contrast, and prominent distances.',
+  field: 'Slate and teal, spacious cards, and a map-led layout. Built for entering angles in the field.',
+  scoreboard: 'Dark navy, amber highlights, and oversized distances. Results take center stage.',
+  bright: 'White surfaces, blue accents, and a simple single-column layout. Quiet and uncluttered.',
   notebook: 'A precise field notebook with a survey-style visualizer.',
   classic: 'The original compact, single-column interface.'
 };

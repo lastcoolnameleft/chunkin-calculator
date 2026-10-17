@@ -10,8 +10,13 @@ test('scoreboard is the new default and page controls follow the tracker', async
     const tracker = await page.locator('#trackerSection').boundingBox();
     const footer = await page.locator('.page-controls').boundingBox();
     expect(footer.y).toBeGreaterThanOrEqual(tracker.y + tracker.height);
-    if (suffix === '') await expect(page.locator('#switchEventContainer')).toBeVisible();
-    else await expect(page.locator('#switchEventContainer')).toBeHidden();
+    if (suffix === '') {
+      await expect(page.locator('#switchEventContainer')).toBeVisible();
+      const panels = await page.locator('#resultsCard .result-panel').evaluateAll(elements =>
+        elements.map(element => element.getBoundingClientRect().top));
+      expect(panels[0]).toBe(panels[1]);
+      expect(panels[1]).toBe(panels[2]);
+    } else await expect(page.locator('#switchEventContainer')).toBeHidden();
   }
 });
 
@@ -26,7 +31,7 @@ test('design previews retain inputs, remember the choice, and show selected shot
   await page.locator('#label').fill('Draft label');
   await page.locator('#angA').fill('60');
   await page.locator('#angB').fill('60');
-  for (const design of ['field', 'scoreboard', 'notebook', 'classic']) {
+  for (const design of ['field', 'scoreboard', 'bright', 'notebook', 'classic']) {
     await page.locator('#designSelect').selectOption(design);
     await expect(page.locator('html')).toHaveAttribute('data-design', design);
     await expect(page.locator('#label')).toHaveValue('Draft label');
@@ -57,7 +62,7 @@ test('all mobile prototypes prioritize shot entry and preserve spectator read-on
   const event = await res.json();
   await page.goto(`/event/${event.id}`);
   await expect(page.locator('#setupCard')).toBeVisible();
-  for (const design of ['field', 'scoreboard', 'notebook']) {
+  for (const design of ['field', 'scoreboard', 'bright', 'notebook']) {
     await page.locator('#designSelect').selectOption(design);
     const entry = await page.locator('#shotEntryCard').boundingBox();
     const setup = await page.locator('#setupCard').boundingBox();
@@ -71,7 +76,7 @@ test('all mobile prototypes prioritize shot entry and preserve spectator read-on
   }
   await page.goto(`/event/${event.id}/spectator`);
   await expect(page.locator('#eventSummaryName')).toHaveText(event.name);
-  for (const design of ['field', 'scoreboard', 'notebook']) {
+  for (const design of ['field', 'scoreboard', 'bright', 'notebook']) {
     await page.locator('#designSelect').selectOption(design);
     const map = await page.locator('#visualizerCard').boundingBox();
     const results = await page.locator('#resultsCard').boundingBox();
@@ -100,11 +105,27 @@ test('populated designs fit desktop and small-phone screens', async ({ page, req
     for (const view of ['editor', 'spectator']) {
       await page.goto(`/event/${event.id}${view === 'spectator' ? '/spectator' : ''}`);
       await expect(page.locator('#latestDescription')).toContainText('Round 3');
-      for (const design of ['field', 'scoreboard', 'notebook']) {
+      for (const design of ['field', 'scoreboard', 'bright', 'notebook']) {
         await page.locator('#designSelect').selectOption(design);
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
         await page.screenshot({ path: testInfo.outputPath(`${design}-${device}-${view}.png`), fullPage: true });
       }
     }
   }
+});
+
+test('modern design comparison is visible before the event picker and remembers Clean & Bright', async ({ page }) => {
+  await page.goto('/');
+  const picker = page.getByRole('group', { name: 'Design preview' });
+  await expect(picker).toBeInViewport();
+  await expect(picker.locator('optgroup[label="Modern designs"] option')).toHaveText([
+    'Modern Field Kit', 'Live Scoreboard', 'Clean & Bright'
+  ]);
+  await page.getByLabel('Compare designs').selectOption('bright');
+  await expect(page.locator('#designDescription')).toContainText('single-column');
+  await expect(page.locator('body')).toHaveCSS('font-family', /system-ui/);
+  await page.reload();
+  await expect(page.getByLabel('Compare designs')).toHaveValue('bright');
+  await page.getByLabel('Compare designs').selectOption('classic');
+  await expect(page.locator('body')).toHaveCSS('font-family', /Georgia/);
 });
