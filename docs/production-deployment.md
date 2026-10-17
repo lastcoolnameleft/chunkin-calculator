@@ -1,37 +1,42 @@
 # Production Deployment
 
-This app uses the same GHCR → Docker Compose → Traefik → Watchtower pattern as the sibling projects. Production hostname: **distance.dfwtrebuchet.com**. Nothing in these instructions requires copying the local database.
+This app uses the same GHCR → Docker Compose → Traefik → Watchtower pattern as the sibling projects. Production hostname: **tracker.dfwtrebuchet.com**. Nothing in these instructions requires copying the local database.
 
 ## Before the first deployment
 
 1. Point the hostname's DNS to your server. Verify Traefik has the `websecure` entrypoint, HTTP-to-HTTPS redirection, and the `myresolver` certificate resolver (or override its name).
-2. Verify the shared Docker network name with `docker network ls`. The app must join the same network as Traefik. Compose defaults to `traefik`; override `TRAEFIK_NETWORK` to match your server.
-3. Inspect that network's subnet:
+2. On this server, **Traefik runs with host networking**; Duckiehunt and the other apps each use their own Compose default bridge network. This app follows that pattern. There is no external network named `traefik` to create or join, and no `traefik.docker.network` label is needed for this single-network app.
+3. After Compose creates the app's default network, inspect its gateway:
 
    ```bash
-   docker network inspect traefik --format '{{json .IPAM.Config}}'
+   docker network inspect chunkin-calculator_default --format '{{json .IPAM.Config}}'
    ```
 
-   Set `TRUST_PROXY` to the actual subnet CIDR(s), separated by commas. Only the proxy should be externally reachable; this app publishes no host port. Do not use `true`, `0.0.0.0/0`, or arbitrary forwarded-header trust. If possible, trust a stable Traefik IP specifically; trusting a shared subnet also trusts other containers on it.
+   Host-network Traefik normally reaches the container from that bridge's gateway address. Verify the source address before setting `TRUST_PROXY` to that IP; restart the container after changing it. Leave it empty until verified, rather than trusting an invented subnet. Until configured, unlock rate limits can be shared among users because Express sees the proxy address. Do not use `true`, `0.0.0.0/0`, or trust arbitrary forwarded headers. This app publishes no host port.
 4. Make sure the server and Watchtower can pull `ghcr.io/lastcoolnameleft/chunkin-calculator`. For a private package, configure registry credentials on the server and in Watchtower as in your existing deployment.
 5. Configure repository Actions secrets **WATCHTOWER_URL** and **WATCHTOWER_TOKEN**. The URL must be an HTTPS update endpoint reachable from GitHub Actions, without an existing query string. The workflow targets only this image, not all hosted applications. Keep credentials out of Compose, commits, and logs.
 
 ## Provision an empty production database
 
-Copy `docker-compose.yml` and `.env.example` to a dedicated directory on the server. Copy `.env.example` to `.env`, then set the network, proxy CIDR, image, and an absolute persistent data directory. For example:
+Copy `docker-compose.yml` and `.env.example` to a dedicated directory on the server. Copy `.env.example` to `.env`, then set the image and an absolute persistent data directory. For example:
 
 ```env
 COMPOSE_PROJECT_NAME=chunkin-calculator
 IMAGE=ghcr.io/lastcoolnameleft/chunkin-calculator:latest
-TRAEFIK_HOST=distance.dfwtrebuchet.com
-TRAEFIK_NETWORK=traefik
+TRAEFIK_HOST=tracker.dfwtrebuchet.com
 TRAEFIK_CERT_RESOLVER=myresolver
 DATA_DIR=/data/chunkin-calculator
-# Replace with the real subnet obtained from docker network inspect.
-TRUST_PROXY=172.20.0.0/16
+# Set to the verified Traefik source IP after inspecting the app network.
+TRUST_PROXY=
 ```
 
-The subnet above is an example, not a value to copy without checking.
+To use `.env.prod` or `.env.stg`, provide the file for both Compose interpolation and the container environment, following the sibling projects:
+
+```bash
+ENV_FILE=.env.prod docker compose --env-file .env.prod up -d
+```
+
+Use different `COMPOSE_PROJECT_NAME`, `DATA_DIR`, and `TRAEFIK_HOST` values for staging and production. The network name is derived from the Compose project name.
 
 The container runs as Node's non-root user, UID/GID **1000:1000**. On the server, create the chosen directory with those permissions:
 
@@ -41,7 +46,7 @@ docker compose config --quiet
 docker compose pull
 docker compose up -d
 docker compose ps
-docker compose logs --tail=100 app
+docker compose logs --tail=100 chunkin-calculator
 ```
 
 Do not copy `data/tracker.db` from development. On first startup the app creates the database, tables, and migrations in the empty mounted directory. An empty event list is expected. Run one app instance with local persistent disk; do not share SQLite WAL storage across multiple hosts or independent replicas.
@@ -51,7 +56,7 @@ Do not copy `data/tracker.db` from development. On first startup the app creates
 The workflow `.github/workflows/deploy.yml` runs on main-branch pushes and pull requests:
 
 - Unit/API/database tests and automated Chromium browser tests.
-- Compose syntax validation (the CI proxy subnet is a placeholder, not production configuration).
+- Compose syntax validation.
 - A Linux Node 22 image build and smoke test for non-root execution, an empty database, and container health.
 
 Only successful main-branch builds publish `latest` and `sha-<full-commit-SHA>` tags. After publishing, the workflow invokes Watchtower, then retries public smoke checks. Watchtower must already be configured to process update requests and include this running container. Its label opts the app into label-filtered updates. GitHub Actions does not provision the host or create the first container.
@@ -75,7 +80,7 @@ Do not deploy the BrowserSync/nodemon runner. Use the production image's `npm st
 From a machine with curl and Node.js:
 
 ```bash
-./scripts/check-deploy.sh https://distance.dfwtrebuchet.com
+./scripts/check-deploy.sh https://tracker.dfwtrebuchet.com
 ```
 
 The script uses only GET requests, validates health and the event-list JSON shape, and checks the frontend, stylesheet, guide, diagram, math CSS, and direct event routes. It creates no events or shots. Set `EXPECTED_REVISION` to a full commit SHA to require that release; CI does this automatically so an older healthy container cannot falsely pass deployment verification. `/healthz` includes the revision embedded in the image. The script does not replace functional browser testing, registry authentication checks, or persistence checks.
@@ -85,10 +90,10 @@ On a phone over HTTPS, create a password-protected test event, add a surveyed tr
 Recreate the container and confirm the test event and editing access persist. Perform this before the real event, not during live scoring. Verify container health:
 
 ```bash
-docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q app)"
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q chunkin-calculator)"
 ```
 
-Health checks report readiness, but Docker's restart policy does not automatically restart a merely unhealthy process. Add external HTTPS monitoring for `/healthz`, and investigate 503s or repeated restarts. Logs rotate at 10 MB × 3 files. Satellite imagery and Leaflet currently require external internet access.
+Health checks report readiness, but Docker's restart policy does not automatically restart a merely unhealthy process. Add external HTTPS monitoring for `/healthz`, and investigate 503s or repeated restarts. Log rotation currently follows the Docker daemon configuration; the optional Compose logging settings can bound it per container. Satellite imagery and Leaflet currently require external internet access.
 
 ## Backups and recovery
 
@@ -97,9 +102,9 @@ The data directory holds the SQLite database and its WAL files, including saved 
 For a simple consistent backup, briefly stop the service and copy the entire directory. Run from the production Compose directory, using the actual configured data path:
 
 ```bash
-docker compose stop app
+docker compose stop chunkin-calculator
 sudo tar -C /data/chunkin-calculator -czf "/data/chunkin-backup-$(date +%Y%m%d-%H%M%S).tar.gz" .
-docker compose start app
+docker compose start chunkin-calculator
 ```
 
 If backup fails, restart the service immediately and investigate. For uninterrupted backups, use SQLite's online backup API instead of live filesystem copying.

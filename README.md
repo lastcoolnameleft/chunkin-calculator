@@ -88,7 +88,7 @@ The runner loads `.env` when present. `PORT` sets the browser-facing port (defau
 
 ### Docker Compose
 
-Compose is configured for your production server's shared Traefik network, not a publicly exposed localhost port. See [Production Deployment](docs/production-deployment.md) for first-time setup, GitHub secrets, empty database provisioning, backup/restore, and rollback.
+Compose uses its own default bridge network, matching the other apps on your production server. Traefik runs in host network mode and routes to the container without a publicly exposed host port. See [Production Deployment](docs/production-deployment.md) for first-time setup, GitHub secrets, empty database provisioning, backup/restore, and rollback.
 
 ```bash
 docker compose config --quiet
@@ -96,7 +96,7 @@ docker compose pull
 docker compose up -d
 ```
 
-The production hostname is [https://distance.dfwtrebuchet.com](https://distance.dfwtrebuchet.com).
+The production hostname is [https://tracker.dfwtrebuchet.com](https://tracker.dfwtrebuchet.com).
 
 ## Environment Variables
 
@@ -104,8 +104,8 @@ Copy `.env.example` to `.env` to configure:
 
 - `PORT`: HTTP port for the web server (default: `3000`).
 - `DB_PATH`: SQLite database file path (default: `./data/tracker.db`).
-- `TRUST_PROXY`: Comma-separated trusted proxy IP addresses/CIDRs. Unset means no proxy trust for direct local development; production Compose requires the actual shared Traefik network CIDR.
-- Production Compose variables: `IMAGE`, `DATA_DIR`, `COMPOSE_PROJECT_NAME`, `TRAEFIK_HOST`, `TRAEFIK_NETWORK`, and `TRAEFIK_CERT_RESOLVER`; see `.env.example`. Compose loads `.env` automatically; `npm start` uses exported environment variables.
+- `TRUST_PROXY`: Comma-separated trusted proxy IP addresses/CIDRs. Unset means no proxy trust. With host-network Traefik, verify its source address (normally the app's bridge gateway) before trusting it.
+- Production Compose variables: `IMAGE`, `DATA_DIR`, `COMPOSE_PROJECT_NAME`, `ENV_FILE`, `TRAEFIK_HOST`, and `TRAEFIK_CERT_RESOLVER`; see `.env.example`. Compose loads `.env` automatically; `npm start` uses exported environment variables.
 
 ## API Endpoints
 

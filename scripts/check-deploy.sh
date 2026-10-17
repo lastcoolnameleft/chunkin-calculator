@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-base="${1:-https://distance.dfwtrebuchet.com}"
+base="${1:-https://tracker.dfwtrebuchet.com}"
 base="${base%/}"
 case "$base" in
   http://*|https://*) ;;
