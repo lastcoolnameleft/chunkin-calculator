@@ -38,8 +38,8 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id TEXT NOT NULL,
       name TEXT NOT NULL,
-      dist REAL NOT NULL,
-      angle REAL NOT NULL,
+      dist REAL,
+      angle REAL,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
     );
@@ -50,14 +50,14 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       label TEXT NOT NULL,
       treb_id INTEGER,
       treb TEXT NOT NULL,
-      tx REAL NOT NULL,
-      ty REAL NOT NULL,
-      angA REAL NOT NULL,
-      angB REAL NOT NULL,
+      tx REAL,
+      ty REAL,
+      angA REAL,
+      angB REAL,
       dist REAL NOT NULL,
-      check_dist REAL NOT NULL,
-      px REAL NOT NULL,
-      py REAL NOT NULL,
+      check_dist REAL,
+      px REAL,
+      py REAL,
       known REAL,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE,
@@ -122,13 +122,80 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
   }
 
   runMigrations();
+  db.transaction(() => {
+    for (const table of ['events', 'trebuchets', 'shots']) {
+      if (!db.pragma(`table_info(${table})`).some(column => column.name === 'measurement_data')) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN measurement_data TEXT NOT NULL DEFAULT '{}'`);
+      }
+    }
+    if (!db.pragma('table_info(events)').some(column => column.name === 'measurement_mode')) {
+      db.exec("ALTER TABLE events ADD COLUMN measurement_mode TEXT NOT NULL DEFAULT 'angles' CHECK (measurement_mode IN ('angles', 'bearings', 'gps'))");
+    }
+  })();
+
+  // GPS records have no triangle angles or local station coordinates.
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      for (const [table, nullable] of [
+        ['trebuchets', ['dist', 'angle']],
+        ['shots', ['tx', 'ty', 'angA', 'angB', 'check_dist', 'px', 'py']]
+      ]) {
+        if (!db.pragma(`table_info(${table})`).some(column => nullable.includes(column.name) && column.notnull)) continue;
+        const original = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table).sql;
+        const sequence = db.prepare('SELECT seq FROM sqlite_sequence WHERE name = ?').get(table)?.seq;
+        const dependentSchema = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL").all(table);
+        let schema = original.replace(new RegExp(`^(CREATE TABLE\\s+(?:IF NOT EXISTS\\s+)?)"?${table}"?`, 'i'), `$1${table}_measurement_migration`);
+        for (const column of nullable) {
+          schema = schema.replace(new RegExp(`("?${column}"?\\s+REAL)\\s+NOT\\s+NULL`, 'i'), '$1');
+        }
+        db.exec(schema);
+        db.exec(`INSERT INTO ${table}_measurement_migration SELECT * FROM ${table};
+          DROP TABLE ${table};
+          ALTER TABLE ${table}_measurement_migration RENAME TO ${table};`);
+        for (const object of dependentSchema) db.exec(object.sql);
+        if (sequence !== undefined) {
+          db.prepare('UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = ?').run(sequence, table);
+        }
+      }
+      if (db.pragma('foreign_key_check').length) throw new Error('Measurement migration failed foreign key validation.');
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS editing_sessions (
       token_hash TEXT PRIMARY KEY,
       event_id TEXT NOT NULL,
       FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS gps_checks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shot_id INTEGER NOT NULL,
+      dist REAL NOT NULL,
+      unit TEXT NOT NULL CHECK (unit IN ('ft', 'm')),
+      measurement_data TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (shot_id) REFERENCES shots (id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS gps_checks_shot_id ON gps_checks (shot_id);
   `);
+
+  function decode(row) {
+    if (!row) return null;
+    const { measurement_data, ...fields } = row;
+    return { ...fields, ...JSON.parse(measurement_data || '{}') };
+  }
+  const eventFields = 'id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at, measurement_mode AS measurementMode, measurement_data';
+  const trebFields = 'id, event_id, name, dist, angle, measurement_data';
+  const shotFields = 'id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist AS "check", px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit, created_at, measurement_data';
+  function decodeShot(row) {
+    if (!row) return null;
+    return {
+      ...decode(row),
+      gpsChecks: db.prepare('SELECT id, dist, unit, measurement_data, created_at FROM gps_checks WHERE shot_id = ? ORDER BY id').all(row.id).map(decode)
+    };
+  }
 
   return {
     raw: db,
@@ -158,16 +225,14 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
 
     // Events
     getEvents() {
-      const stmt = db.prepare('SELECT id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at FROM events ORDER BY created_at DESC');
-      return stmt.all();
+      return db.prepare(`SELECT ${eventFields} FROM events ORDER BY created_at DESC`).all().map(decode);
     },
 
     getEventById(id) {
-      const stmt = db.prepare('SELECT id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at FROM events WHERE id = ?');
-      return stmt.get(id) || null;
+      return decode(db.prepare(`SELECT ${eventFields} FROM events WHERE id = ?`).get(id));
     },
 
-    createEvent({ id, name, baseline = 0, unit = 'ft', station_a_lat = null, station_a_lng = null, station_b_lat = null, station_b_lng = null } = {}) {
+    createEvent({ id, name, baseline = 0, unit = 'ft', station_a_lat = null, station_a_lng = null, station_b_lat = null, station_b_lng = null, measurementMode = 'angles' } = {}) {
       if (typeof arguments[0] === 'string') {
         // Support signature createEvent(name, baseline, unit)
         const evName = arguments[0];
@@ -178,8 +243,8 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
       }
       const isConfigured = baseline > 0 ? 1 : 0;
       const stmt = db.prepare(`
-        INSERT INTO events (id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, created_at, updated_at)
-        VALUES (@id, @name, @baseline, @unit, @isConfigured, @station_a_lat, @station_a_lng, @station_b_lat, @station_b_lng, datetime('now'), datetime('now'))
+        INSERT INTO events (id, name, baseline, unit, is_configured, station_a_lat, station_a_lng, station_b_lat, station_b_lng, measurement_mode, created_at, updated_at)
+        VALUES (@id, @name, @baseline, @unit, @isConfigured, @station_a_lat, @station_a_lng, @station_b_lat, @station_b_lng, @measurementMode, datetime('now'), datetime('now'))
       `);
       stmt.run({
         id,
@@ -187,6 +252,7 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
         baseline: baseline || 0,
         unit: unit || 'ft',
         isConfigured,
+        measurementMode,
         station_a_lat: station_a_lat !== undefined ? station_a_lat : null,
         station_a_lng: station_a_lng !== undefined ? station_a_lng : null,
         station_b_lat: station_b_lat !== undefined ? station_b_lat : null,
@@ -205,10 +271,15 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
     getSetup(eventId = DEFAULT_EVENT_ID) {
       const ev = this.getEventById(eventId);
       if (!ev) return null;
-      if (ev.baseline === 0 && !ev.is_configured && ev.station_a_lat === null) {
+      if (ev.measurementMode === 'angles' && ev.baseline === 0 && !ev.is_configured && ev.station_a_lat === null) {
         return null;
       }
       return {
+        ...(ev.measurementMode === 'angles' ? {} : {
+          measurementMode: ev.measurementMode,
+          referenceA: ev.referenceA ?? null, referenceB: ev.referenceB ?? null,
+          gpsBackup: Boolean(ev.gpsBackup)
+        }),
         baseline: ev.baseline,
         unit: ev.unit,
         station_a_lat: ev.station_a_lat,
@@ -249,13 +320,18 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
         SET baseline = @baseline, unit = @unit, is_configured = 1,
             station_a_lat = @station_a_lat, station_a_lng = @station_a_lng,
             station_b_lat = @station_b_lat, station_b_lng = @station_b_lng,
-            updated_at = datetime('now')
+            measurement_data = @measurement_data, updated_at = datetime('now')
         WHERE id = @id
       `);
       stmt.run({
         id: eventId,
         baseline,
         unit,
+        measurement_data: JSON.stringify({
+          referenceA: gps.referenceA ?? current?.referenceA ?? null,
+          referenceB: gps.referenceB ?? current?.referenceB ?? null,
+          gpsBackup: gps.gpsBackup ?? current?.gpsBackup ?? false
+        }),
         station_a_lat: new_a_lat,
         station_a_lng: new_a_lng,
         station_b_lat: new_b_lat,
@@ -266,22 +342,21 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
 
     // Trebuchets scoped to event
     getTrebuchets(eventId = DEFAULT_EVENT_ID) {
-      const stmt = db.prepare('SELECT id, event_id, name, dist, angle FROM trebuchets WHERE event_id = ? ORDER BY id ASC');
-      return stmt.all(eventId);
+      return db.prepare(`SELECT ${trebFields} FROM trebuchets WHERE event_id = ? ORDER BY id ASC`).all(eventId).map(decode);
     },
 
     getTrebuchetById(id, eventId = null) {
-      let query = 'SELECT id, event_id, name, dist, angle FROM trebuchets WHERE id = ?';
+      let query = `SELECT ${trebFields} FROM trebuchets WHERE id = ?`;
       const params = [id];
       if (eventId) {
         query += ' AND event_id = ?';
         params.push(eventId);
       }
       const stmt = db.prepare(query);
-      return stmt.get(...params) || null;
+      return decode(stmt.get(...params));
     },
 
-    addTrebuchet(eventId, name, dist, angle) {
+    addTrebuchet(eventId, name, dist, angle, measurement = {}) {
       // Support legacy signature addTrebuchet(name, dist, angle)
       if (typeof angle === 'undefined') {
         angle = dist;
@@ -293,10 +368,10 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
         ensureDefaultEvent();
       }
       const stmt = db.prepare(`
-        INSERT INTO trebuchets (event_id, name, dist, angle)
-        VALUES (@eventId, @name, @dist, @angle)
+        INSERT INTO trebuchets (event_id, name, dist, angle, measurement_data)
+        VALUES (@eventId, @name, @dist, @angle, @measurement_data)
       `);
-      const info = stmt.run({ eventId, name, dist, angle });
+      const info = stmt.run({ eventId, name, dist, angle, measurement_data: JSON.stringify(measurement) });
       return this.getTrebuchetById(info.lastInsertRowid);
     },
 
@@ -315,17 +390,17 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
     // Shots scoped to event
     getShots(eventId = DEFAULT_EVENT_ID) {
       const stmt = db.prepare(`
-        SELECT id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist as "check", px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit, created_at
+        SELECT ${shotFields}
         FROM shots
         WHERE event_id = ?
         ORDER BY id ASC
       `);
-      return stmt.all(eventId);
+      return stmt.all(eventId).map(decodeShot);
     },
 
     getShotById(id, eventId = null) {
       let query = `
-        SELECT id, event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist as "check", px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit, created_at
+        SELECT ${shotFields}
         FROM shots
         WHERE id = ?
       `;
@@ -335,16 +410,16 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
         params.push(eventId);
       }
       const stmt = db.prepare(query);
-      return stmt.get(...params) || null;
+      return decodeShot(stmt.get(...params));
     },
 
-    addShot({ eventId = DEFAULT_EVENT_ID, label, treb_id, treb, tx, ty, angA, angB, dist, check, px, py, known, ballisticWeight = null, counterweight = null, fingerAngle = null, weightUnit = null }) {
+    addShot({ eventId = DEFAULT_EVENT_ID, label, treb_id, treb, tx = null, ty = null, angA = null, angB = null, dist, check = null, px = null, py = null, known, ballisticWeight = null, counterweight = null, fingerAngle = null, weightUnit = null, measurement = {} }) {
       if (eventId === DEFAULT_EVENT_ID) {
         ensureDefaultEvent();
       }
       const stmt = db.prepare(`
-        INSERT INTO shots (event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist, px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit)
-        VALUES (@eventId, @label, @treb_id, @treb, @tx, @ty, @angA, @angB, @dist, @check, @px, @py, @known, @ballisticWeight, @counterweight, @fingerAngle, @weightUnit)
+        INSERT INTO shots (event_id, label, treb_id, treb, tx, ty, angA, angB, dist, check_dist, px, py, known, ballisticWeight, counterweight, fingerAngle, weightUnit, measurement_data)
+        VALUES (@eventId, @label, @treb_id, @treb, @tx, @ty, @angA, @angB, @dist, @check, @px, @py, @known, @ballisticWeight, @counterweight, @fingerAngle, @weightUnit, @measurement_data)
       `);
       const info = stmt.run({
         eventId,
@@ -360,9 +435,15 @@ function createDb(dbPath = process.env.DB_PATH || path.join(__dirname, '../data/
         px,
         py,
         known: known ?? null,
-        ballisticWeight, counterweight, fingerAngle, weightUnit
+        ballisticWeight, counterweight, fingerAngle, weightUnit,
+        measurement_data: JSON.stringify(measurement)
       });
       return this.getShotById(info.lastInsertRowid);
+    },
+
+    addGpsCheck(shotId, distance, unit, measurement) {
+      db.prepare('INSERT INTO gps_checks (shot_id, dist, unit, measurement_data) VALUES (?, ?, ?, ?)')
+        .run(shotId, distance, unit, JSON.stringify(measurement));
     },
 
     deleteShot(id, eventId = null) {

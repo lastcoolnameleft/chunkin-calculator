@@ -1,11 +1,16 @@
 const express = require('express');
 const path = require('path');
 const { createDb } = require('./db');
-const { calculateShot, calculateBearing, calculateHaversineDistance, localXYToLatLng } = require('./math');
+const { calculateShot, calculateBearing, calculateHaversineDistance, localXYToLatLng, bearingDifference } = require('./math');
+const measurements = require('./measurements');
 const { hashPassword, createAuth } = require('./auth');
 const { renderGuide } = require('./guide');
 
 function enrichWithGeo(point, event, unit) {
+  if (point.gps) point.geo = { lat: point.gps.latitude, lng: point.gps.longitude };
+  if (point.launchGps) point.trebGeo = point.treb_geo = { lat: point.launchGps.latitude, lng: point.launchGps.longitude };
+  if (point.landingGps) point.impactGeo = point.impact_geo = { lat: point.landingGps.latitude, lng: point.landingGps.longitude };
+  if (point.method === 'gps') return point;
   if (
     !event ||
     event.station_a_lat === null ||
@@ -39,7 +44,7 @@ function enrichWithGeo(point, event, unit) {
   );
 
   // If point has tx, ty (e.g. shot launcher location)
-  if (typeof point.tx === 'number' && typeof point.ty === 'number') {
+  if (!point.launchGps && typeof point.tx === 'number' && typeof point.ty === 'number') {
     const geo = overlayPosition(point.tx, point.ty);
     point.treb_geo = geo;
     point.trebGeo = geo;
@@ -51,7 +56,7 @@ function enrichWithGeo(point, event, unit) {
     point.impactGeo = geo;
   }
   // If point has dist and angle (e.g. trebuchet definition)
-  if (typeof point.dist === 'number' && typeof point.angle === 'number') {
+  if (!point.gps && typeof point.dist === 'number' && typeof point.angle === 'number') {
     const rad = (point.angle * Math.PI) / 180;
     const x = point.dist * Math.cos(rad);
     const y = point.dist * Math.sin(rad);
@@ -63,6 +68,9 @@ function enrichWithGeo(point, event, unit) {
 
 function createApp(db) {
   const app = express();
+  function respondError(res, err) {
+    res.status(err instanceof measurements.MeasurementError ? 400 : 500).json({ error: err.message });
+  }
   const proxyAddresses = (process.env.TRUST_PROXY || '').split(',').map(value => value.trim()).filter(Boolean);
   if (proxyAddresses.length) app.set('trust proxy', proxyAddresses);
   app.disable('x-powered-by');
@@ -130,6 +138,9 @@ function createApp(db) {
   app.use(['/api/setup', '/api/trebuchets', '/api/shots'], (req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD') return next();
     const event = db.getEvents()[0];
+    if (event && event.measurementMode !== 'angles') {
+      return res.status(409).json({ error: 'Use the event-specific endpoints for GPS and compass-bearing events.' });
+    }
     if (event && !auth.authorized(req, event.id)) {
       return res.status(401).json({ error: 'Unlock this event with its editing password first.' });
     }
@@ -175,7 +186,13 @@ function createApp(db) {
 
   app.post('/api/events', async (req, res) => {
     try {
-      const { id, name, baseline, unit, password = '' } = req.body || {};
+      const { id, name, baseline, unit, password = '', measurementMode = 'angles' } = req.body || {};
+      if (!['angles', 'bearings', 'gps'].includes(measurementMode)) {
+        return res.status(400).json({ error: 'Measurement mode must be "gps", "bearings", or "angles".' });
+      }
+      if (unit !== undefined && unit !== 'ft' && unit !== 'm') {
+        return res.status(400).json({ error: 'Unit must be "ft" or "m".' });
+      }
       if (typeof password !== 'string' || password.length > 128) {
         return res.status(400).json({ error: 'Password must be text of at most 128 characters.' });
       }
@@ -201,7 +218,8 @@ function createApp(db) {
         uniqueId = `${eventId}-${counter++}`;
       }
 
-      const b = baseline !== undefined && baseline !== null && baseline !== '' ? parseFloat(baseline) : 0;
+      const b = baseline !== undefined && baseline !== null && baseline !== ''
+        ? measurementMode === 'bearings' ? measurements.number(baseline, 'Baseline', 0) : parseFloat(baseline) : 0;
       const u = unit === 'm' ? 'm' : 'ft';
 
       const parseCoord = (val) => {
@@ -212,19 +230,21 @@ function createApp(db) {
 
       const created = db.createEvent({
         id: uniqueId,
+        measurementMode,
         name: trimmedName,
-        baseline: isNaN(b) || b < 0 ? 0 : b,
+        baseline: measurementMode === 'gps' || isNaN(b) || b < 0 ? 0 : b,
         unit: u,
         station_a_lat: parseCoord(req.body.station_a_lat ?? req.body.stationALat),
         station_a_lng: parseCoord(req.body.station_a_lng ?? req.body.stationALng),
         station_b_lat: parseCoord(req.body.station_b_lat ?? req.body.stationBLat),
-        station_b_lng: parseCoord(req.body.station_b_lng ?? req.body.stationBLng)
+        station_b_lng: parseCoord(req.body.station_b_lng ?? req.body.stationBLng),
+        ...(measurementMode !== 'angles' ? measurements.stationGps(measurementMode === 'gps' ? {} : req.body) : {})
       });
 
       db.setEventPasswordHash(created.id, passwordHash);
       res.status(201).json(publicEvent(created));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      respondError(res, err);
     }
   });
 
@@ -297,13 +317,19 @@ function createApp(db) {
         station_b_lat,
         station_b_lng
       } = req.body;
+      if (req.body.measurementMode !== undefined && req.body.measurementMode !== event.measurementMode) {
+        throw new measurements.MeasurementError('An event’s measurement mode cannot change. Create a new event for a different mode.');
+      }
 
-      const b = parseFloat(baseline);
-      if (isNaN(b) || b <= 0) {
+      const b = event.measurementMode === 'gps' ? 0 : measurements.number(baseline, 'Baseline', 0);
+      if (event.measurementMode !== 'gps' && b <= 0) {
         return res.status(400).json({ error: 'Baseline must be a positive number.' });
       }
       if (unit !== 'ft' && unit !== 'm') {
         return res.status(400).json({ error: 'Unit must be "ft" or "m".' });
+      }
+      if (event.measurementMode !== 'angles' && unit !== event.unit && (db.getShots(eventId).length || db.getTrebuchets(eventId).length)) {
+        return res.status(400).json({ error: 'Units cannot change after adding trebuchets or shots. Create a separate event to use different units.' });
       }
 
       const parseCoord = (val) => {
@@ -312,17 +338,26 @@ function createApp(db) {
         return isNaN(num) ? null : num;
       };
 
-      const gps = {
+      const gps = event.measurementMode !== 'angles' ? measurements.stationGps(event.measurementMode === 'gps' ? {} : req.body) : {
         station_a_lat: parseCoord(req.body.station_a_lat ?? req.body.stationALat),
         station_a_lng: parseCoord(req.body.station_a_lng ?? req.body.stationALng),
         station_b_lat: parseCoord(req.body.station_b_lat ?? req.body.stationBLat),
         station_b_lng: parseCoord(req.body.station_b_lng ?? req.body.stationBLng)
       };
+      if (event.measurementMode === 'bearings') {
+        gps.referenceA = measurements.bearing(req.body.referenceA, 'Station A bearing toward Station B');
+        gps.referenceB = measurements.bearing(req.body.referenceB, 'Station B bearing toward Station A');
+        if (req.body.gpsBackup !== undefined && typeof req.body.gpsBackup !== 'boolean') {
+          throw new measurements.MeasurementError('GPS backup must be true or false.');
+        }
+        gps.gpsBackup = req.body.gpsBackup ?? Boolean(event.gpsBackup);
+      }
 
       const updated = db.saveSetup(eventId, b, unit, gps);
-      res.json(updated);
+      res.json({ ...updated, ...(event.measurementMode === 'bearings'
+        ? { warning: measurements.referenceWarning(gps.referenceA, gps.referenceB) } : {}) });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      respondError(res, err);
     }
   });
 
@@ -351,13 +386,27 @@ function createApp(db) {
       }
 
       let { name, dist, angle } = req.body;
-      const d = parseFloat(dist);
-      const a = parseFloat(angle);
+      const measurement = {};
+      let d = null, a = null;
+      if (event.measurementMode === 'gps') {
+        measurement.gps = measurements.gps(req.body.gps, 'Trebuchet launch location');
+      } else {
+        d = measurements.number(dist, 'Distance from Station A', 0);
+        if (event.measurementMode === 'bearings') {
+          if (event.referenceA == null) throw new measurements.MeasurementError('Save the station reference bearings before surveying a trebuchet.');
+          measurement.bearing = measurements.bearing(req.body.bearing, 'Trebuchet bearing from Station A');
+          measurement.referenceA = event.referenceA;
+          a = bearingDifference(event.referenceA, measurement.bearing);
+          measurement.gps = measurements.gps(req.body.gps, 'Trebuchet launch location', false);
+        } else {
+          a = measurements.number(angle, 'Angle from baseline', -180, 180);
+        }
+      }
 
-      if (isNaN(d) || d < 0) {
+      if (event.measurementMode !== 'gps' && (isNaN(d) || d < 0)) {
         return res.status(400).json({ error: 'Distance from Station A must be a non-negative number.' });
       }
-      if (isNaN(a) || a < -180 || a > 180) {
+      if (event.measurementMode !== 'gps' && (isNaN(a) || a < -180 || a > 180)) {
         return res.status(400).json({ error: 'Angle from baseline must be between -180 and 180 degrees.' });
       }
 
@@ -365,11 +414,11 @@ function createApp(db) {
       const trimmedName = typeof name === 'string' ? name.trim() : '';
       const finalName = trimmedName || `Trebuchet ${existing.length + 1}`;
 
-      const created = db.addTrebuchet(eventId, finalName, d, a);
+      const created = db.addTrebuchet(eventId, finalName, d, a, measurement);
       const enriched = enrichWithGeo({ ...created }, event, event.unit);
       res.status(201).json(enriched);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      respondError(res, err);
     }
   });
 
@@ -411,7 +460,7 @@ function createApp(db) {
         return res.status(404).json({ error: 'Event not found.' });
       }
       const setup = db.getSetup(eventId);
-      if (!setup || !setup.baseline) {
+      if (event.measurementMode !== 'gps' && (!setup || !setup.baseline)) {
         return res.status(400).json({ error: 'Save the baseline setup first.' });
       }
 
@@ -421,32 +470,52 @@ function createApp(db) {
       const parsedAngA = parseFloat(angA);
       const parsedAngB = parseFloat(angB);
 
-      if (isNaN(parsedAngA) || isNaN(parsedAngB)) {
+      if (event.measurementMode === 'angles' && (isNaN(parsedAngA) || isNaN(parsedAngB))) {
         return res.status(400).json({ error: 'Both angle readings are required numbers.' });
       }
 
       let treb = null;
       if (trebId !== undefined && trebId !== null && trebId !== '') {
-        treb = db.getTrebuchetById(parseInt(trebId, 10), eventId);
+        const id = event.measurementMode === 'angles' ? parseInt(trebId, 10)
+          : measurements.number(trebId, 'Trebuchet ID', 1);
+        if (!Number.isInteger(id)) throw new measurements.MeasurementError('Select a valid firing trebuchet.');
+        treb = db.getTrebuchetById(id, eventId);
         if (!treb) {
           return res.status(400).json({ error: 'Selected trebuchet was not found.' });
         }
+      }
+      if (event.measurementMode !== 'angles' && !treb) {
+        throw new measurements.MeasurementError('Select the firing trebuchet first.');
       }
 
       const existingShots = db.getShots(eventId);
       const trimmedLabel = typeof label === 'string' ? label.trim() : '';
       const finalLabel = trimmedLabel || `Shot ${existingShots.length + 1}`;
 
-      const parsedKnown = known !== undefined && known !== null && known !== '' ? parseFloat(known) : null;
+      const parsedKnown = known !== undefined && known !== null && known !== '' ? measurements.number(known, 'Known distance', 0) : null;
 
-      const computed = calculateShot({
-        angA: parsedAngA,
-        angB: parsedAngB,
-        baseline: setup.baseline,
-        treb,
-        label: finalLabel,
-        known: parsedKnown
-      });
+      let computed;
+      if (event.measurementMode === 'gps') {
+        const launchGps = measurements.gps(treb.gps, 'Trebuchet launch location');
+        const landingGps = measurements.gps(req.body.landingGps, 'Landing location');
+        computed = {
+          label: finalLabel, treb: treb.name, known: parsedKnown,
+          dist: measurements.gpsDistance(launchGps, landingGps, event.unit),
+          measurement: { method: 'gps', unit: event.unit, launchGps, landingGps }
+        };
+      } else if (event.measurementMode === 'bearings') {
+        computed = measurements.compassShot(event, req.body, treb, finalLabel, parsedKnown);
+        computed.measurement.launchGps = treb.gps || null;
+      } else {
+        computed = calculateShot({
+          angA: parsedAngA,
+          angB: parsedAngB,
+          baseline: setup.baseline,
+          treb,
+          label: finalLabel,
+          known: parsedKnown
+        });
+      }
 
       if (!computed) {
         return res.status(400).json({
@@ -468,13 +537,32 @@ function createApp(db) {
         check: computed.check,
         px: computed.px,
         py: computed.py,
-        known: computed.known
+        known: computed.known,
+        measurement: computed.measurement || { method: 'angles', unit: event.unit, baseline: event.baseline }
       });
 
       const enriched = enrichWithGeo({ ...created }, event, event.unit);
       res.status(201).json(enriched);
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      respondError(res, err);
+    }
+  });
+
+  app.post('/api/events/:eventId/shots/:id/gps-checks', (req, res) => {
+    try {
+      const event = db.getEventById(req.params.eventId);
+      const shot = db.getShotById(Number(req.params.id), event.id);
+      if (!shot) return res.status(404).json({ error: 'Shot not found.' });
+      if (event.measurementMode !== 'bearings' || !event.gpsBackup || shot.method !== 'bearings') {
+        return res.status(400).json({ error: 'Enable GPS checks in the compass event setup first.' });
+      }
+      const launchGps = measurements.gps(req.body.launchGps ?? shot.launchGps, 'Launch location for this shot');
+      const landingGps = measurements.gps(req.body.landingGps, 'Landing location');
+      const unit = shot.unit;
+      db.addGpsCheck(shot.id, measurements.gpsDistance(launchGps, landingGps, unit), unit, { launchGps, landingGps });
+      res.status(201).json(enrichWithGeo(db.getShotById(shot.id, event.id), event, event.unit));
+    } catch (err) {
+      respondError(res, err);
     }
   });
 

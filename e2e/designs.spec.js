@@ -12,6 +12,7 @@ test('scoreboard is the new default and page controls follow the tracker', async
     expect(footer.y).toBeGreaterThanOrEqual(tracker.y + tracker.height);
     if (suffix === '') {
       await expect(page.locator('#switchEventContainer')).toBeVisible();
+      await page.getByRole('tab', { name: 'Visualization', exact: true }).click();
       const panels = await page.locator('#resultsCard .result-panel').evaluateAll(elements =>
         elements.map(element => element.getBoundingClientRect().top));
       expect(panels[0]).toBe(panels[1]);
@@ -27,7 +28,7 @@ test('design previews retain inputs, remember the choice, and show selected shot
   } });
   const event = await res.json();
   await page.goto(`/event/${event.id}`);
-  await expect(page.locator('#setupCard')).toBeVisible();
+  await expect(page.locator('#shotEntryCard')).toBeVisible();
   await page.locator('#label').fill('Draft label');
   await page.locator('#angA').fill('60');
   await page.locator('#angB').fill('60');
@@ -36,7 +37,8 @@ test('design previews retain inputs, remember the choice, and show selected shot
     await expect(page.locator('html')).toHaveAttribute('data-design', design);
     await expect(page.locator('#label')).toHaveValue('Draft label');
     await expect(page.locator('#angA')).toHaveValue('60');
-    await expect(page.locator('#mapWrapper')).toBeVisible();
+    await expect(page.locator('#shotEntryCard')).toBeVisible();
+    await expect(page.locator('#mapWrapper')).toBeHidden();
   }
   await page.locator('#designSelect').selectOption('notebook');
   await page.getByRole('button', { name: 'Add shot', exact: true }).click();
@@ -48,6 +50,7 @@ test('design previews retain inputs, remember the choice, and show selected shot
   await page.getByRole('button', { name: 'Add shot', exact: true }).click();
   await expect(page.locator('#latestDistance')).toHaveText('35.4 ft');
   await expect(page.locator('#longestDistance')).toHaveText('50.0 ft');
+  await page.getByRole('tab', { name: 'Shot History', exact: true }).click();
   await page.getByRole('button', { name: 'Highlight Draft label', exact: true }).click();
   await expect(page.locator('#highlightDescription')).toContainText('A 60° · B 60°');
   await page.locator('#showTriangle').check();
@@ -61,14 +64,12 @@ test('all mobile prototypes prioritize shot entry and preserve spectator read-on
   const res = await request.post('/api/events', { data: { name: 'Mobile Designs', baseline: 50 } });
   const event = await res.json();
   await page.goto(`/event/${event.id}`);
-  await expect(page.locator('#setupCard')).toBeVisible();
+  await expect(page.locator('#shotEntryCard')).toBeVisible();
   for (const design of ['field', 'scoreboard', 'bright', 'notebook']) {
     await page.locator('#designSelect').selectOption(design);
-    const entry = await page.locator('#shotEntryCard').boundingBox();
-    const setup = await page.locator('#setupCard').boundingBox();
-    const map = await page.locator('#visualizerCard').boundingBox();
-    expect(entry.y).toBeLessThan(setup.y);
-    expect(entry.y).toBeLessThan(map.y);
+    await expect(page.locator('#shotEntryCard')).toBeVisible();
+    await expect(page.locator('#setupCard')).toBeHidden();
+    await expect(page.locator('#visualizerCard')).toBeHidden();
     const input = await page.locator('#angA').boundingBox();
     expect(input.height).toBeGreaterThanOrEqual(48);
     await expect(page.locator('#angA')).toHaveAttribute('inputmode', 'decimal');
@@ -78,9 +79,8 @@ test('all mobile prototypes prioritize shot entry and preserve spectator read-on
   await expect(page.locator('#eventSummaryName')).toHaveText(event.name);
   for (const design of ['field', 'scoreboard', 'bright', 'notebook']) {
     await page.locator('#designSelect').selectOption(design);
-    const map = await page.locator('#visualizerCard').boundingBox();
-    const results = await page.locator('#resultsCard').boundingBox();
-    expect(map.y).toBeLessThan(results.y);
+    await expect(page.locator('#visualizerCard')).toBeVisible();
+    await expect(page.locator('#resultsCard')).toBeVisible();
     await expect(page.locator('.editor-only:visible')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   }

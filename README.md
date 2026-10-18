@@ -11,16 +11,37 @@ A lightweight tool used at live trebuchet-throwing events to measure projectile 
 
 - **Separate Submission & Spectator Views**: Edit at `/event/<event-id>` and share `/event/<event-id>/spectator` for read-only setup, trebuchet distances and angles, shot results, CSV export, and schematic/satellite visualizers.
 - **Optional Event Passwords**: Protect editing with one shared password per event, without usernames. All event writes, including legacy API writes, require an unlocked session when a password is set.
-- **Authoritative Server Triangulation**: Live angle readings (`angA`, `angB`) are calculated on the backend via the Law of Sines and Cosines, ensuring consistent distance calculations across all devices.
+- **Event Measurement Modes**: Choose **Compass bearings** or **GPS locations** when creating an event. Each mode has its own setup and shot-entry fields; existing angle-based events remain unchanged.
+- **Task Tabs**: **Setup** holds station settings, trebuchets, sharing, and editing access. **Log a Shot** keeps entry focused, **Shot History** holds the log, CSV export, and GPS checks, and **Visualization** holds live results and maps. Unfinished events start on Setup; ready editors start on Log a Shot. Spectators start on Visualization and have no shot-entry tab. Switching tabs preserves drafts and live updates.
+- **Authoritative Server Triangulation**: Compass readings are converted to triangle angles before using the existing Law of Sines and Cosines calculation. Raw readings and reference bearings are saved with each shot.
 - **Angle Field Help**: Each angle field has a `?` button opening a floating popover without shifting the form. It explains which sight lines to measure between: A toward B then impact, B toward A then impact, or A toward B then the surveyed trebuchet. Dismiss with Escape or a click outside.
 - **Multi-Device Synchronization**: Polling keeps all clients in sync with shots, trebuchet surveys, and setup data in near real-time.
 - **Offline / Local Fallback**: Maintains a local storage cache and displays non-intrusive inline error banners if connection drops.
 - **Embedded SVG Visualization**: Live, to-scale plotting of Station A, Station B, trebuchets, and impact points.
 - **Satellite Map Markers**: Labeled station, trebuchet, and impact icons with measurement popups. Saving station GPS coordinates refreshes existing plotted points.
-- **Illustrative GPS Overlay**: Map positions are scaled to fit both station GPS anchors; the overlay may not match real-world locations or distances. Entered baseline, surveys, and angles remain authoritative for calculations and are never changed to match GPS.
+- **GPS Measurements and Checks**: GPS events measure launch-to-landing distance directly from saved coordinates without stations. Compass events can optionally attach GPS checks without replacing the original score. Reported device accuracy is recorded in meters; manually entered coordinates have unknown accuracy.
+- **Illustrative Station Overlay**: In triangulation events, map positions are scaled to fit optional station GPS anchors; the overlay may not match real-world locations or distances. Entered baseline, surveys, and readings remain authoritative and are never changed to match this overlay.
 - **Lightweight & Containerized**: Node.js, Express, and SQLite with Docker and Docker Compose support.
 
 ## Workflow & Direct URLs
+
+### Choose an Event Measurement Mode
+
+**Compass bearings**: measure the A–B baseline once, then save the forward bearing from A toward B and from B toward A. Each station must use the same compass for its reference and impact readings, away from magnetic interference. Survey each trebuchet using its distance and bearing from A. For each shot, select the firing trebuchet and enter the two impact bearings on the black 0–360 degree scale. The server handles north wraparound, signed survey angles, and impacts on either side of the baseline. Diverging or non-intersecting readings are rejected; shallow geometry and inconsistent reference bearings produce warnings. The baseline consistency check does not validate compass accuracy.
+
+**GPS locations**: choose feet or meters and capture or enter each trebuchet's launch coordinates. Select the firing trebuchet, visit the marked landing location during a safe recovery period, and capture or enter its coordinates. No stations, baseline, or compass readings are required. Capture previews the device's current position and does not automatically log a shot. Distances are Earth-surface distances between coordinates, not altitude-adjusted slope distances or measurements from satellite pixels. HTTPS and location permission are required for capture; manual entry remains available.
+
+**Optional GPS backup**: enable **Allow GPS checks** in compass setup. Launch GPS can be recorded with the trebuchet survey. Later, select **Add GPS check** on a shot, confirm its launch coordinates, and record landing GPS. Checks are appended to that shot and shown alongside the unchanged compass distance. If launch GPS was not saved with the shot, enter or capture the confirmed launch position explicitly. Both endpoints' reported accuracy and capture times are retained; missing accuracy is shown as unknown, not zero. Device accuracy estimates are not guaranteed error bounds.
+
+Event modes cannot be switched in place. New GPS/compass events lock units after a trebuchet or shot is added, and shot records retain their original readings, unit, launch snapshot, and calculated result. Existing events keep their legacy angle workflow; **Legacy angles** is available under **Advanced** when creating an event. For API compatibility, omitting `measurementMode` still creates a legacy angle event. New clients should send `"measurementMode": "bearings"` or `"measurementMode": "gps"` and use event-scoped endpoints.
+
+New API inputs:
+- Compass setup: `POST /api/events/:id/setup` with `baseline`, `unit`, `referenceA`, `referenceB`, and optional boolean `gpsBackup`.
+- Trebuchet: `POST /api/events/:id/trebuchets` with `name` and either `gps` for GPS events, or `dist` and `bearing` for compass events (optional launch `gps`).
+- Shot: `POST /api/events/:id/shots` with `trebId` and either `landingGps`, or `bearingA` and `bearingB`.
+- GPS check: `POST /api/events/:id/shots/:shotId/gps-checks` with `landingGps` and optional confirmed `launchGps`; otherwise the shot's saved launch GPS is used.
+
+Each GPS object contains `latitude`, `longitude`, optional `accuracy` in meters, and optional ISO `capturedAt`. CSV exports include measurement methods, original bearings/reference readings, GPS coordinates and metadata, and appended checks. Existing SQLite data is migrated in place without recalculating historical shots; back up the database before upgrading production.
 
 ### Design Previews
 
@@ -41,7 +62,7 @@ Passwords are stored as salted scrypt hashes, never returned by the API or inclu
 
 For event setup instructions, accuracy calculations, and guidance on choosing an optimal baseline distance, see the comprehensive [Triangulation Field Guide](docs/triangulation-guide.md).
 
-The website's **How this works** link opens `/how-it-works/`, which renders that same Markdown guide with formatted equations and its diagram. Edit `docs/triangulation-guide.md` to update both the documentation and website; no duplicate content or GitHub redirect is involved. Satellite Map is the default visualizer in both event views, and the visualizer appears first in the spectator view.
+The website's **How this works** link opens `/how-it-works/`, which renders that same Markdown guide with formatted equations and its diagram. Edit `docs/triangulation-guide.md` to update both the documentation and website; no duplicate content or GitHub redirect is involved. GPS events use the satellite map without stations. Compass events without station GPS use the schematic, so optional map coordinates are not mistaken for required setup. Legacy events retain the satellite-map default. Spectators start on the Visualization tab.
 
 ### Quick Sizing Rules of Thumb
 

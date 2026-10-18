@@ -8,6 +8,7 @@
 <script>
 document.documentElement.dataset.spectator = String(/\/spectator\/?$/.test(location.pathname));
 document.documentElement.dataset.editable = 'false';
+document.documentElement.dataset.measurement = 'angles';
 </script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -158,7 +159,15 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <label for="newEventName">Event Name</label>
           <input type="text" id="newEventName" placeholder="e.g. Punkin Chunkin 2025">
         </div>
-        <div class="field" style="max-width:140px">
+        <div class="field">
+          <label for="newEventMode">How will you measure shots?</label>
+          <select id="newEventMode" onchange="updateNewEventMode()" aria-describedby="newModeDescription">
+            <option value="bearings">Compass bearings</option>
+            <option value="gps">GPS locations</option>
+            <optgroup label="Advanced"><option value="angles">Legacy angles</option></optgroup>
+          </select>
+        </div>
+        <div class="field" id="newBaselineField" style="max-width:140px">
           <label for="newEventBaseline">Baseline (optional)</label>
           <input type="number" id="newEventBaseline" step="0.1" min="0" placeholder="e.g. 50">
         </div>
@@ -172,6 +181,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
         </div>
         <button type="button" onclick="handleCreateEvent()">Create Event</button>
       </div>
+      <p class="tiny" id="newModeDescription"></p>
 
       <div style="margin-top:20px;">
         <h3 style="font-size:.9rem; color:var(--deep); font-family:'Trebuchet MS',sans-serif; margin:0 0 8px;">Existing Events</h3>
@@ -182,13 +192,6 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
 
   <!-- Main Tracker View (shown when an event is active) -->
   <div id="trackerSection" style="display:none;">
-    <div class="share-bar" id="shareBar">
-      <span>Share Spectator URL:</span>
-      <input type="text" id="shareUrlInput" readonly onclick="this.select()">
-      <button id="copyShareButton" type="button" class="secondary" style="padding:5px 12px; font-size:.82rem;" aria-live="polite" onclick="copyShareUrl()">Copy URL</button>
-      <a id="spectatorLink" target="_blank" rel="noopener">Open spectator view</a>
-    </div>
-
     <p class="tiny" id="liveStatus" role="status" aria-live="polite">Connecting to event...</p>
     <div class="card submitter-only" id="unlockCard" style="display:none;">
       <h2>Unlock editing</h2>
@@ -205,21 +208,16 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       <h2 id="eventSummaryName">Event</h2>
       <p class="setup-status" id="eventSummarySetup"></p>
     </div>
-    <details class="card editor-only" id="accessCard">
-      <summary>Editing access</summary>
-      <p class="tiny" id="accessNotice"></p>
-      <form class="row" onsubmit="changePassword(event)">
-        <div class="field">
-          <label for="changeEventPassword">New editing password (leave blank to allow anyone to edit)</label>
-          <input type="password" id="changeEventPassword" maxlength="128" autocomplete="new-password">
-        </div>
-        <button type="submit">Save password</button>
-        <button type="button" class="secondary" onclick="lockEditor()">Lock editor</button>
-      </form>
-    </details>
-
-    <div class="card editor-only" id="setupCard">
-      <h2>1. Setup (<span id="eventHeadingName">Event</span>)</h2>
+    <div class="event-tabs" role="tablist" aria-label="Event sections">
+      <button type="button" role="tab" id="tab-setup" aria-controls="panel-setup" aria-selected="false" tabindex="-1" onclick="switchEventTab('setup')">Setup</button>
+      <button type="button" role="tab" id="tab-shot" class="editor-only" aria-controls="panel-shot" aria-selected="false" tabindex="-1" onclick="switchEventTab('shot')">Log a Shot</button>
+      <button type="button" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1" onclick="switchEventTab('history')">Shot History</button>
+      <button type="button" role="tab" id="tab-visualization" aria-controls="panel-visualization" aria-selected="true" tabindex="0" onclick="switchEventTab('visualization')">Visualization</button>
+    </div>
+    <section class="event-panel" id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" tabindex="0" hidden>
+    <div id="measurementChecklist" class="editor-only"></div>
+    <div class="card editor-only station-only" id="setupCard">
+      <h2>Station setup (<span id="eventHeadingName">Event</span>)</h2>
       <div class="row">
         <div class="field">
           <label for="baseline">Baseline: distance from Station A to Station B</label>
@@ -229,7 +227,17 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <label for="unit">Units</label>
           <select id="unit"><option value="ft">feet</option><option value="m">meters</option></select>
         </div>
-        <button onclick="saveSetup()">Save setup</button>
+        <div class="bearings-only measurement-block">
+          <p class="tiny">One-time setup: at each station, sight the other station. Keep the compass level and use the black 0–360° forward-bearing scale. Do not rotate the bezel or subtract readings.</p>
+          <div class="row">
+            <div class="field"><label for="referenceA">At Station A: bearing toward Station B (°)</label><input id="referenceA" type="number" inputmode="decimal" min="0" max="360" step="any"></div>
+            <div class="field"><label for="referenceB">At Station B: bearing toward Station A (°)</label><input id="referenceB" type="number" inputmode="decimal" min="0" max="360" step="any"></div>
+          </div>
+          <label class="triangle-control measurement-block"><input id="gpsBackup" type="checkbox"> Allow GPS checks on compass shots</label>
+          <p class="tiny">GPS checks are separate measurements and never replace the original compass result. Record launch GPS when surveying, or enter a confirmed launch location when adding a check.</p>
+          <p class="warn" id="referenceWarning" role="status"></p>
+        </div>
+        <button class="measurement-block" onclick="saveSetup()">Save setup</button>
       </div>
 
       <!-- Optional Station GPS Coordinates for Satellite Map Overlay -->
@@ -264,16 +272,16 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       </details>
 
       <div class="setup-status" id="setupStatus">No baseline saved yet.</div>
-      <p class="tiny">Stations A and B need a clear view of the entire target area. One pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°. Compass bearings work too but are less reliable near metal trebuchets.</p>
+      <p class="tiny angles-only">Stations A and B need a clear view of the entire target area. One pair covers every trebuchet. At each station, zero an angle-sighting device (large protractor on a stake, or a phone sighting app) toward the <em>other</em> station — that's 0°.</p>
     </div>
 
     <div class="card" id="trebCard">
       <h2>Trebuchets</h2>
-      <p class="tiny" style="margin-top:0">For each trebuchet, measure its distance from Station A and the angle from the A→B baseline to the trebuchet (sighted from A; positive angles sweep into the target area, negative angles down to -180° sweep behind the baseline).</p>
+      <p class="tiny" id="trebInstructions" style="margin-top:0">For each trebuchet, measure its distance from Station A and its angle from the A→B baseline.</p>
       <div class="row editor-only">
         <div class="field"><label for="trebName">Name</label><input type="text" id="trebName" placeholder="Trebuchet 1"></div>
-        <div class="field"><label for="trebDist">Distance from Station A</label><input type="number" id="trebDist" step="0.1" min="0"></div>
-        <div class="field">
+        <div class="field station-only"><label for="trebDist">Distance from Station A</label><input type="number" id="trebDist" step="0.1" min="0"></div>
+        <div class="field angles-only">
           <div class="angle-label">
             <label for="trebAngle">Angle from baseline (°)</label>
             <button type="button" class="angle-help" aria-label="Help with trebuchet survey angle" aria-expanded="false" aria-controls="trebAngleHelp" onclick="toggleAngleHelp(this)">?</button>
@@ -281,20 +289,43 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <input type="number" id="trebAngle" step="0.1" min="-180" max="180" aria-describedby="trebAngleHelp">
           <p class="angle-explanation" id="trebAngleHelp" popover>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>trebuchet</strong>. Enter the angle between those two sight lines. Angles into the target area are positive; angles behind the A–B baseline are negative (down to -180°). This is the trebuchet's position angle, not its launch angle.</p>
         </div>
-        <button onclick="addTrebuchet()">Add trebuchet</button>
+        <div class="field bearings-only"><label for="trebBearing">At Station A: bearing toward trebuchet (°)</label><input id="trebBearing" type="number" inputmode="decimal" min="0" max="360" step="any"></div>
       </div>
+      <div class="launch-gps editor-only" id="trebGpsFields"></div>
+      <button class="editor-only measurement-block" onclick="addTrebuchet()">Add trebuchet</button>
       <table style="margin-top:10px" id="trebTable">
-        <thead><tr><th>Name</th><th class="num">Dist. from A</th><th class="num">Angle</th><th class="action editor-only"></th></tr></thead>
+        <thead><tr><th>Name</th><th class="num" id="trebColumn2">Dist. from A</th><th class="num" id="trebColumn3">Angle</th><th class="action editor-only"></th></tr></thead>
         <tbody id="trebBody"><tr><td colspan="4" class="empty">No trebuchets added yet — you can still log shots measured from Station A directly.</td></tr></tbody>
       </table>
     </div>
 
+    <details class="card editor-only" id="accessCard">
+      <summary>Editing access</summary>
+      <p class="tiny" id="accessNotice"></p>
+      <form class="row" onsubmit="changePassword(event)">
+        <div class="field">
+          <label for="changeEventPassword">New editing password (leave blank to allow anyone to edit)</label>
+          <input type="password" id="changeEventPassword" maxlength="128" autocomplete="new-password">
+        </div>
+        <button type="submit">Save password</button>
+        <button type="button" class="secondary" onclick="lockEditor()">Lock editor</button>
+      </form>
+    </details>
+    <div class="share-bar" id="shareBar">
+      <span>Share Spectator URL:</span>
+      <input type="text" id="shareUrlInput" readonly onclick="this.select()">
+      <button id="copyShareButton" type="button" class="secondary" style="padding:5px 12px; font-size:.82rem;" aria-live="polite" onclick="copyShareUrl()">Copy URL</button>
+      <a id="spectatorLink" target="_blank" rel="noopener">Open spectator view</a>
+    </div>
+    </section>
+
+    <section class="event-panel" id="panel-shot" role="tabpanel" aria-labelledby="tab-shot" tabindex="0" hidden>
     <div class="card editor-only" id="shotEntryCard">
-      <h2>3. Log a shot</h2>
+      <h2 id="shotEntryHeading">Log a shot</h2>
       <div class="row">
         <div class="field"><label for="label">Shot label</label><input type="text" id="label" placeholder="Shot 1"></div>
         <div class="field"><label for="trebSelect">Trebuchet</label><select id="trebSelect"><option value="">— from Station A —</option></select></div>
-        <div class="field">
+        <div class="field angles-only">
           <div class="angle-label">
             <label for="angA">Angle at Station A (°)</label>
             <button type="button" class="angle-help" aria-label="Help with Station A angle" aria-expanded="false" aria-controls="angAHelp" onclick="toggleAngleHelp(this)">?</button>
@@ -302,7 +333,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <input type="number" id="angA" inputmode="decimal" step="0.1" min="0" max="179" aria-describedby="angAHelp">
           <p class="angle-explanation" id="angAHelp" popover>Stand at <strong>Station A</strong>. Aim toward <strong>Station B</strong> to set 0°, then turn toward the <strong>impact</strong>. Report the angle between the A→B sight line and the A→impact sight line, with the corner at A. Do not measure from the trebuchet or use an absolute compass bearing. Example: a quarter-turn from B toward the impact is 90°.</p>
         </div>
-        <div class="field">
+        <div class="field angles-only">
           <div class="angle-label">
             <label for="angB">Angle at Station B (°)</label>
             <button type="button" class="angle-help" aria-label="Help with Station B angle" aria-expanded="false" aria-controls="angBHelp" onclick="toggleAngleHelp(this)">?</button>
@@ -310,6 +341,11 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
           <input type="number" id="angB" inputmode="decimal" step="0.1" min="0" max="179" aria-describedby="angBHelp">
           <p class="angle-explanation" id="angBHelp" popover>Stand at <strong>Station B</strong>. Aim toward <strong>Station A</strong> to set 0°, then turn toward the <strong>impact</strong>. Report the angle between the B→A sight line and the B→impact sight line, with the corner at B. Do not measure from the trebuchet or use the A→B direction as your zero. Both impact angles must be greater than 0° and add up to less than 180°.</p>
         </div>
+        <div class="field bearings-only"><label for="bearingA">Station A → impact bearing (°)</label><input id="bearingA" type="number" inputmode="decimal" min="0" max="360" step="any"></div>
+        <div class="field bearings-only"><label for="bearingB">Station B → impact bearing (°)</label><input id="bearingB" type="number" inputmode="decimal" min="0" max="360" step="any"></div>
+        <p class="tiny bearings-only measurement-wide">Sight the impact and enter each compass reading. No subtraction needed. Stay away from magnetic interference.</p>
+        <div class="gps-only measurement-wide" id="landingGpsFields"></div>
+        <p class="tiny gps-only measurement-wide">Only visit landing locations when the field is safe. GPS records this device's position, not the spot it is pointing toward. Distance is measured from the selected trebuchet's saved launch position.</p>
         <div class="field"><label for="known">Known actual distance (optional — for testing)</label><input type="number" id="known" step="0.1" min="0"></div>
         <div class="field"><label for="ballisticWeight">Ballistic weight (<span class="weight-unit">lb</span>, optional)</label><input type="number" id="ballisticWeight" inputmode="decimal" step="any" min="0"></div>
         <div class="field"><label for="counterweight">Counterweight (<span class="weight-unit">lb</span>, optional)</label><input type="number" id="counterweight" inputmode="decimal" step="any" min="0"></div>
@@ -319,11 +355,14 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
       <div id="lastResult"></div>
     </div>
 
+    </section>
+
+    <section class="event-panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden>
     <div class="card" id="shotLogCard">
       <h2>Shot log</h2>
       <div class="scroll">
       <table id="shotTable">
-        <thead><tr><th>Shot</th><th>Trebuchet</th><th class="num">∠A</th><th class="num">∠B</th><th class="num">Distance</th><th class="num">Baseline check</th><th class="num">Error</th><th class="num">Ballistic weight</th><th class="num">Counterweight</th><th class="num">Finger angle</th><th class="action editor-only"></th></tr></thead>
+        <thead><tr><th>Shot / method</th><th>Trebuchet</th><th class="num" id="shotColumnA">∠A</th><th class="num" id="shotColumnB">∠B</th><th class="num">Distance</th><th class="num" id="shotCheckColumn">Baseline check</th><th class="num">Error</th><th class="num">Ballistic weight</th><th class="num">Counterweight</th><th class="num">Finger angle</th><th class="action editor-only"></th></tr></thead>
         <tbody id="shotBody"><tr><td colspan="11" class="empty">No shots logged yet.</td></tr></tbody>
       </table>
       </div>
@@ -332,8 +371,19 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
         <button class="secondary editor-only" onclick="clearAll()">Clear all shots</button>
       </div>
       <textarea id="csvBox" readonly style="display:none; margin-top:10px"></textarea>
+      <section id="gpsCheckPanel" class="editor-only measurement-block" hidden aria-labelledby="gpsCheckHeading">
+        <h3 id="gpsCheckHeading">Add GPS check</h3>
+        <p class="tiny">Visit the marked landing location only when the field is safe. Confirm the launch location for this shot. This check does not replace its original result.</p>
+        <div id="checkLaunchGpsFields"></div>
+        <div id="checkLandingGpsFields"></div>
+        <button type="button" onclick="saveGpsCheck()">Save GPS check</button>
+        <button type="button" class="secondary" onclick="closeGpsCheck()">Cancel</button>
+      </section>
     </div>
 
+    </section>
+
+    <section class="event-panel" id="panel-visualization" role="tabpanel" aria-labelledby="tab-visualization" tabindex="0">
     <div class="card" id="resultsCard">
       <h2>Live results</h2>
       <div class="result-panel">
@@ -358,11 +408,11 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
     <div class="card" id="visualizerCard">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
         <h2 style="margin:0;">Visualizer</h2>
-        <div style="display:inline-flex; border:1px solid var(--line); border-radius:2px; overflow:hidden;" role="tablist">
-          <button type="button" class="view-toggle-btn" id="btnSchematicView" onclick="switchVisualizerView('schematic')">Schematic</button>
+        <div style="display:inline-flex; border:1px solid var(--line); border-radius:2px; overflow:hidden;" role="group" aria-label="Visualization type">
+          <button type="button" class="view-toggle-btn station-only" id="btnSchematicView" onclick="switchVisualizerView('schematic')">Schematic</button>
           <button type="button" class="view-toggle-btn active" id="btnMapView" onclick="switchVisualizerView('map')">Satellite Map</button>
         </div>
-        <label class="triangle-control"><input type="checkbox" id="showTriangle" onchange="renderDiagram();renderMap()"> Show measurement triangle for highlighted shot</label>
+        <label class="triangle-control station-only"><input type="checkbox" id="showTriangle" onchange="renderDiagram();renderMap()"> Show measurement triangle for highlighted shot</label>
       </div>
 
       <!-- Schematic SVG View -->
@@ -376,12 +426,13 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
         <div id="mapContainer"></div>
         <div id="mapNotice" class="tiny" style="margin-top:8px;"></div>
         <div class="map-legend">
-          <span><span class="dot-indicator" style="background:#2f6f7a; border:1px solid #ffffff;"></span> Stations A &amp; B</span>
+          <span class="station-only"><span class="dot-indicator" style="background:#2f6f7a; border:1px solid #ffffff;"></span> Stations A &amp; B</span>
           <span><span class="dot-indicator" style="background:#c9832f; border:1px solid #ffffff;"></span> Trebuchets</span>
           <span><span class="dot-indicator" style="background:#173a52; border:1px solid #ffffff;"></span> Impact Points</span>
         </div>
       </div>
     </div>
+    </section>
   </div>
   <footer class="page-controls">
     <div id="switchEventContainer" class="submitter-only" style="display:none;">
@@ -390,6 +441,7 @@ textarea{width:100%; min-height:110px; font-family:monospace; font-size:.78rem; 
   </footer>
 </div>
 
+<script src="/measurements.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 function toggleAngleHelp(button) {
@@ -423,6 +475,44 @@ let currentEventId = null;
 let currentEvent = null;
 let setup = null, shots = [], trebs = [];
 let selectedShotId = null;
+let currentEventTab = 'visualization';
+function switchEventTab(tab, focus = false) {
+  const button = $(`tab-${tab}`);
+  if (!button || tab === 'shot' && (!editable || spectator)) return;
+  currentEventTab = tab;
+  document.querySelectorAll('.event-tabs [role="tab"]').forEach(item => {
+    const selected = item === button;
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    $(item.getAttribute('aria-controls')).hidden = !selected;
+  });
+  document.querySelectorAll('.angle-explanation:popover-open').forEach(help => help.hidePopover());
+  if (focus) button.focus();
+  if (tab === 'visualization') requestAnimationFrame(() => {
+    if (currentEventTab !== 'visualization') return;
+    if (currentVisualizerView === 'map') {
+      if (leafletMap) leafletMap.invalidateSize();
+      initOrUpdateMap();
+    } else renderDiagram();
+  });
+}
+document.querySelector('.event-tabs').addEventListener('keydown', event => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+  const tabs = [...document.querySelectorAll('.event-tabs [role="tab"]')]
+    .filter(button => button.getClientRects().length);
+  const index = tabs.indexOf(event.target);
+  if (index < 0) return;
+  event.preventDefault();
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+    : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  switchEventTab(tabs[next].id.slice(4), true);
+});
+function openEventSection(tab, target) {
+  switchEventTab(tab);
+  $(target).scrollIntoView({ block: 'start', behavior: 'smooth' });
+  const input = $(target).querySelector('input:not([disabled]), select:not([disabled])');
+  if (input) input.focus({ preventScroll: true });
+}
 let design = 'scoreboard';
 const designDescriptions = {
   field: 'Slate and teal, spacious cards, and a map-led layout. Built for entering angles in the field.',
@@ -455,6 +545,10 @@ function highlightShot(value) {
   renderDiagram();
   if (currentVisualizerView === 'map') renderMap();
 }
+function visualizeShot(value) {
+  highlightShot(value);
+  switchEventTab('visualization', true);
+}
 function trebColor(treb) {
   const palette = ['#b65d13', '#287d90', '#8056ae', '#3e8052', '#ae4565', '#6a6d24'];
   const name = typeof treb === 'string' ? treb : treb?.treb || treb?.name || 'Station A';
@@ -467,7 +561,7 @@ function renderResults() {
   const latest = shots[shots.length - 1];
   const longest = shots.reduce((best, shot) => !best || shot.dist > best.dist ? shot : best, null);
   for (const [prefix, shot] of [['latest', latest], ['longest', longest]]) {
-    $(`${prefix}Distance`).textContent = shot ? `${shot.dist.toFixed(1)} ${setup?.unit || currentEvent?.unit || ''}` : '—';
+    $(`${prefix}Distance`).textContent = shot ? `${shot.dist.toFixed(1)} ${shot.unit || setup?.unit || currentEvent?.unit || ''}` : '—';
     $(`${prefix}Description`).textContent = shot ? `${shot.label} · ${shot.treb || 'Station A'}` : 'Waiting for the first shot';
   }
   $('highlightShot').innerHTML = '<option value="">Follow latest shot</option>' +
@@ -475,7 +569,7 @@ function renderResults() {
   $('highlightShot').value = selectedShotId === null ? '' : String(selectedShotId);
   const active = activeShot();
   $('highlightDescription').textContent = active
-    ? `${active.treb}: ${active.dist.toFixed(1)} ${setup?.unit || ''} · A ${active.angA}° · B ${active.angB}°`
+    ? `${active.treb}: ${active.dist.toFixed(1)} ${active.unit || setup?.unit || ''} · ${shotReadingSummary(active)}`
     : 'Select a shot to inspect its distance and readings.';
 }
 let spectator = /\/spectator\/?$/.test(window.location.pathname);
@@ -525,6 +619,7 @@ function renderAccess() {
     : 'No password set: anyone with the editor URL can modify this event.';
   renderTrebs();
   renderTable();
+  if (currentEventTab === 'shot' && (!editable || spectator)) switchEventTab('visualization');
 }
 
 function requireEditing() {
@@ -628,7 +723,7 @@ async function loadEventsList() {
       <div class="event-item">
         <div>
           <strong style="color:var(--deep); font-size:.95rem;">${escapeHtml(e.name)}</strong>
-          <span style="color:var(--accent); font-size:.82rem; margin-left:8px;">${e.baseline ? `Baseline: ${e.baseline} ${e.unit}` : 'Baseline not set'}</span>
+          <span style="color:var(--accent); font-size:.82rem; margin-left:8px;">${modeName(e.measurementMode || 'angles')} · ${e.measurementMode === 'gps' ? `Distances in ${e.unit}` : e.baseline ? `Baseline: ${e.baseline} ${e.unit}` : 'Baseline not set'}</span>
         </div>
         <div>
           <button style="padding:4px 12px; font-size:.82rem;" onclick="selectEvent('${encodeURIComponent(e.id)}')">Open Tracker</button>
@@ -651,6 +746,7 @@ async function handleCreateEvent() {
   const baseline = baselineVal !== '' ? parseFloat(baselineVal) : null;
   const unit = $('newEventUnit').value || 'ft';
   const password = $('newEventPassword').value;
+  const measurementMode = $('newEventMode').value;
 
   if (!name) {
     alert('Please enter an event name.');
@@ -661,7 +757,7 @@ async function handleCreateEvent() {
     const res = await fetch('/api/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, baseline, unit, password })
+      body: JSON.stringify({ name, baseline, unit, password, measurementMode })
     });
     if (!res.ok) {
       const data = await res.json();
@@ -694,6 +790,7 @@ async function handleCreateEvent() {
 }
 
 function selectEvent(eventId) {
+  resetMeasurementDrafts();
   selectedShotId = null;
   spectator = false;
   editable = false;
@@ -715,6 +812,7 @@ function selectEvent(eventId) {
 }
 
 function showEventPicker() {
+  resetMeasurementDrafts();
   if (spectator) {
     $('trackerSection').style.display = 'none';
     $('eventSelectSection').style.display = 'none';
@@ -732,12 +830,6 @@ function showEventPicker() {
 }
 
 function showTrackerView() {
-  const tracker = $('trackerSection');
-  if (spectator) {
-    tracker.prepend($('visualizerCard'));
-  } else {
-    tracker.append($('visualizerCard'));
-  }
   $('eventSelectSection').style.display = 'none';
   $('trackerSection').style.display = 'block';
   $('switchEventContainer').style.display = 'block';
@@ -750,6 +842,7 @@ function showTrackerView() {
   renderSetup();
   renderDiagram();
   renderAccess();
+  switchEventTab('visualization');
   switchVisualizerView('map');
 }
 
@@ -820,6 +913,7 @@ async function loadAll() {
       eventRes.json(), setupRes.json(), trebsRes.json(), shotsRes.json(), accessRes.json()
     ]);
     if (eventId !== currentEventId || requestToken !== getEditToken(eventId)) return;
+    const firstLoad = currentEvent === null;
     currentEvent = eventData;
     setup = setupData;
     passwordProtected = access.passwordProtected;
@@ -832,6 +926,8 @@ async function loadAll() {
     $('eventSummaryName').textContent = currentEvent.name;
     $('mainSubtitle').textContent = spectator
       ? 'Spectator view - live event results, read-only.'
+      : measurementMode() === 'gps' ? 'GPS event - record launch and landing locations. No stations required.'
+      : measurementMode() === 'bearings' ? 'Compass event - set up once, then report one bearing per spotter.'
       : 'Submission view - survey trebuchets and log shots.';
     document.title = `${currentEvent.name} - ${spectator ? 'Spectator' : 'Submitter'} | Impact Distance Tracker`;
     renderAccess();
@@ -842,7 +938,17 @@ async function loadAll() {
     renderTrebs();
     renderTable();
     renderDiagram();
+    if (firstLoad && measurementMode() === 'bearings' &&
+      (setup?.station_a_lat == null || setup?.station_a_lng == null || setup?.station_b_lat == null || setup?.station_b_lng == null)) {
+      switchVisualizerView('schematic');
+    }
     if (currentVisualizerView === 'map') renderMap();
+    if (firstLoad && editable && !spectator) {
+      const needsSetup = measurementMode() === 'gps' ? !trebs.length
+        : !setup?.baseline || measurementMode() === 'bearings' &&
+          (setup.referenceA == null || setup.referenceB == null || !trebs.length);
+      switchEventTab(needsSetup ? 'setup' : 'shot');
+    }
   } catch (err) {
     if (eventId === currentEventId) {
       showInlineError(`Connection error: ${err.message}.`);
@@ -899,6 +1005,8 @@ async function pollData() {
       if (setupChanged) {
         setup = newSetup;
         renderSetup();
+        renderTrebs();
+        renderTable();
       }
       if (trebChanged) {
         trebs = newTrebs;
@@ -948,6 +1056,11 @@ async function saveSetup() {
     station_b_lat: stBLatVal !== '' ? parseFloat(stBLatVal) : null,
     station_b_lng: stBLngVal !== '' ? parseFloat(stBLngVal) : null
   };
+  if (measurementMode() === 'bearings') {
+    payload.referenceA = $('referenceA').value;
+    payload.referenceB = $('referenceB').value;
+    payload.gpsBackup = $('gpsBackup').checked;
+  }
 
   try {
     const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/setup`, {
@@ -1027,6 +1140,7 @@ function renderSetup() {
     $('stBLat').value = setup?.station_b_lat ?? '';
     $('stBLng').value = setup?.station_b_lng ?? '';
   }
+  renderMeasurementMode();
 }
 
 async function addTrebuchet() {
@@ -1035,9 +1149,10 @@ async function addTrebuchet() {
   const nameInput = $('trebName').value.trim();
   const dist = parseFloat($('trebDist').value);
   const angle = parseFloat($('trebAngle').value);
+  const mode = measurementMode();
 
-  if (isNaN(dist) || isNaN(angle)) {
-    alert('Enter distance and angle for this trebuchet.');
+  if (mode !== 'gps' && (!Number.isFinite(dist) || mode === 'angles' && !Number.isFinite(angle))) {
+    showInlineError('Enter a distance and the required survey reading for this trebuchet.');
     return;
   }
 
@@ -1045,7 +1160,11 @@ async function addTrebuchet() {
     const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/trebuchets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: nameInput, dist, angle })
+      body: JSON.stringify({
+        name: nameInput,
+        ...(mode === 'gps' ? { gps: readGpsFields('launch') } : { dist, angle }),
+        ...(mode === 'bearings' ? { bearing: $('trebBearing').value, gps: setup?.gpsBackup ? readGpsFields('launch', false) : null } : {})
+      })
     });
     if (!res.ok) {
       const data = await res.json();
@@ -1057,6 +1176,8 @@ async function addTrebuchet() {
     $('trebName').value = '';
     $('trebDist').value = '';
     $('trebAngle').value = '';
+    $('trebBearing').value = '';
+    setGpsFields('launch', null);
     renderTrebs();
     renderDiagram();
     if (currentVisualizerView === 'map') renderMap();
@@ -1091,30 +1212,35 @@ function renderTrebs() {
   if (!trebs.length) {
     body.innerHTML = `<tr><td colspan="${editable && !spectator ? 4 : 3}" class="empty">No trebuchets added yet.</td></tr>`;
   } else {
-    body.innerHTML = trebs.map(t =>
-      `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.dist}</td><td class="num">${t.angle}°</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delTreb(${t.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`
-    ).join('');
+    body.innerHTML = trebs.map(t => {
+      const mode = measurementMode();
+      const description = mode === 'gps' ? gpsQuality(t.gps)
+        : mode === 'bearings' ? `Bearing survey ready${setup?.gpsBackup ? t.gps ? ' · Launch GPS recorded' : ' · GPS check needs a launch location' : ''}` : '';
+      return `<tr><td>${escapeHtml(t.name)}${description ? `<div class="tiny">${description}</div>` : ''}</td><td class="num">${mode === 'gps' ? t.gps.latitude : t.dist}</td><td class="num">${mode === 'gps' ? t.gps.longitude : `${mode === 'bearings' ? t.bearing : t.angle}°`}</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delTreb(${t.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`;
+    }).join('');
   }
 
-  sel.innerHTML = '<option value="">— from Station A —</option>' +
+  sel.innerHTML = `<option value="">${measurementMode() === 'angles' ? '— from Station A —' : 'Select firing trebuchet'}</option>` +
     trebs.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
 
   if (currentVal && trebs.some(t => String(t.id) === String(currentVal))) {
     sel.value = currentVal;
   }
+  renderMeasurementSummary();
 }
 
 async function addShot() {
   if (!requireEditing()) return;
   if (!currentEventId) return;
-  if (!setup || !setup.baseline) {
-    alert('Save the baseline setup first.');
+  const mode = measurementMode();
+  if (mode !== 'gps' && (!setup || !setup.baseline)) {
+    showInlineError('Save the baseline setup first.');
     return;
   }
   const angA = parseFloat($('angA').value);
   const angB = parseFloat($('angB').value);
-  if (isNaN(angA) || isNaN(angB)) {
-    alert('Enter both angle readings.');
+  if (mode === 'angles' && (isNaN(angA) || isNaN(angB))) {
+    showInlineError('Enter both angle readings.');
     return;
   }
 
@@ -1135,22 +1261,31 @@ async function addShot() {
     const res = await eventFetch(`/api/events/${encodeURIComponent(currentEventId)}/shots`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, trebId, angA, angB, known, ...metadata })
+      body: JSON.stringify({
+        label, trebId, known, ...metadata,
+        ...(mode === 'gps' ? { landingGps: readGpsFields('landing') }
+          : mode === 'bearings' ? { bearingA: $('bearingA').value, bearingB: $('bearingB').value }
+          : { angA, angB })
+      })
     });
 
     const data = await res.json();
     if (!res.ok) {
-      $('lastResult').innerHTML = `<p class="warn">${data.error || 'Invalid shot readings.'}</p>`;
+      $('lastResult').innerHTML = `<p class="warn">${escapeHtml(data.error || 'Invalid shot readings.')}</p>`;
       return;
     }
 
     shots.push(data);
     clearInlineError();
 
-    $('lastResult').innerHTML = `<div class="result">${data.dist.toFixed(1)} <span class="result-unit">${setup.unit}</span></div><div class="tiny">from ${escapeHtml(data.treb)} to impact — baseline self-check: ${data.check.toFixed(1)} ${setup.unit} (should be close to ${setup.baseline})</div>`;
+    const unit = data.unit || setup.unit;
+    $('lastResult').innerHTML = `<div class="result">${data.dist.toFixed(1)} <span class="result-unit">${unit}</span></div><div class="tiny">from ${escapeHtml(data.treb)} to impact · ${escapeHtml(shotReadingSummary(data))}</div>${data.check == null ? '' : `<div class="tiny">Baseline consistency check: ${data.check.toFixed(1)} ${unit}. This is not an independent check of field accuracy.</div>`}${data.warning ? `<p class="warn">${escapeHtml(data.warning)}</p>` : ''}`;
     $('label').value = '';
     $('angA').value = '';
     $('angB').value = '';
+    $('bearingA').value = '';
+    $('bearingB').value = '';
+    setGpsFields('landing', null);
     $('known').value = '';
     for (const key of Object.keys(metadata)) $(key).value = '';
 
@@ -1172,7 +1307,15 @@ function renderTable() {
   body.innerHTML = shots.map(s => {
     const err = s.known ? (100 * Math.abs(s.dist - s.known) / s.known).toFixed(1) + '%' : '—';
     const weight = value => value == null ? '—' : `${value} ${s.weightUnit || ''}`;
-    return `<tr${s.id === activeShot()?.id ? ' class="highlighted-shot"' : ''}><td><button type="button" class="shot-link" onclick="highlightShot('${s.id}')" aria-label="Highlight ${escapeHtml(s.label)}">${escapeHtml(s.label)}</button></td><td><span class="treb-swatch" style="background:${trebColor(s)}"></span>${escapeHtml(s.treb || 'Station A')}</td><td class="num">${s.angA}°</td><td class="num">${s.angB}°</td><td class="num">${s.dist.toFixed(1)}</td><td class="num">${s.check.toFixed(1)}</td><td class="num">${err}</td><td class="num">${weight(s.ballisticWeight)}</td><td class="num">${weight(s.counterweight)}</td><td class="num">${s.fingerAngle == null ? '—' : `${s.fingerAngle}°`}</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delShot(${s.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`;
+    const mode = s.method || 'angles';
+    const readingA = mode === 'gps' ? s.landingGps.latitude : `${mode === 'bearings' ? s.bearingA : s.angA}°`;
+    const readingB = mode === 'gps' ? s.landingGps.longitude : `${mode === 'bearings' ? s.bearingB : s.angB}°`;
+    const check = mode === 'gps' ? `${gpsQuality(s.launchGps)} (launch); ${gpsQuality(s.landingGps)} (landing)` : s.check.toFixed(1);
+    const gpsAction = mode === 'bearings' && setup?.gpsBackup && editable && !spectator
+      ? `<button type="button" class="secondary" onclick="openGpsCheck(${s.id})" aria-label="Add GPS check for ${escapeHtml(s.label)}">Add GPS check</button>` : '';
+    const details = mode === 'bearings'
+      ? `<details class="tiny"><summary>Calculation details</summary>Saved references: A ${s.referenceA}°, B ${s.referenceB}°.<br>Converted triangle angles: A ${s.angA.toFixed(2)}°, B ${s.angB.toFixed(2)}°.<br>Measured baseline: ${s.baseline} ${s.unit}.<br>The consistency check does not establish field accuracy.</details>` : '';
+    return `<tr${s.id === activeShot()?.id ? ' class="highlighted-shot"' : ''}><td><button type="button" class="shot-link" onclick="visualizeShot('${s.id}')" aria-label="Highlight ${escapeHtml(s.label)}">${escapeHtml(s.label)}</button><div class="tiny">${modeName(mode)}</div>${details}${gpsAction}${gpsCheckMarkup(s)}${s.warning ? `<p class="warn">${escapeHtml(s.warning)}</p>` : ''}</td><td><span class="treb-swatch" style="background:${trebColor(s)}"></span>${escapeHtml(s.treb || 'Station A')}</td><td class="num">${readingA}</td><td class="num">${readingB}</td><td class="num">${s.dist.toFixed(1)}${s.unit ? ` ${s.unit}` : ''}</td><td class="num">${check}</td><td class="num">${err}</td><td class="num">${weight(s.ballisticWeight)}</td><td class="num">${weight(s.counterweight)}</td><td class="num">${s.fingerAngle == null ? '—' : `${s.fingerAngle}°`}</td>${editable && !spectator ? `<td class="action"><button class="del" onclick="delShot(${s.id})" aria-label="Delete">✕</button></td>` : ''}</tr>`;
   }).join('');
 }
 
@@ -1220,11 +1363,26 @@ async function clearAll() {
 function showCsv() {
   const box = $('csvBox');
   const unit = setup ? setup.unit : '';
-  let csv = `Shot,Trebuchet,Angle A (deg),Angle B (deg),Distance (${unit}),Baseline check (${unit}),Known distance (${unit}),Ballistic weight,Counterweight,Weight unit,Finger angle (deg)\n`;
-  shots.forEach(s => {
-    csv += `${s.label},${s.treb || 'Station A'},${s.angA},${s.angB},${s.dist.toFixed(2)},${s.check.toFixed(2)},${s.known ?? ''},${s.ballisticWeight ?? ''},${s.counterweight ?? ''},${s.weightUnit ?? ''},${s.fingerAngle ?? ''}\n`;
-  });
-  box.value = csv;
+  const cell = value => {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const rows = [[
+    'Shot', 'Trebuchet', 'Angle A (deg)', 'Angle B (deg)', `Distance (${unit})`, `Baseline check (${unit})`,
+    `Known distance (${unit})`, 'Ballistic weight', 'Counterweight', 'Weight unit', 'Finger angle (deg)',
+    'Method', 'Distance unit', 'Bearing A (deg)', 'Bearing B (deg)', 'Reference A (deg)', 'Reference B (deg)',
+    'Launch latitude', 'Launch longitude', 'Launch accuracy (m)', 'Launch capture time',
+    'Landing latitude', 'Landing longitude', 'Landing accuracy (m)', 'Landing capture time', 'GPS checks (JSON)'
+  ]];
+  for (const s of shots) rows.push([
+    s.label, s.treb || 'Station A', s.angA, s.angB, s.dist.toFixed(2), s.check?.toFixed(2), s.known,
+    s.ballisticWeight, s.counterweight, s.weightUnit, s.fingerAngle, s.method || 'angles', s.unit || unit,
+    s.bearingA, s.bearingB, s.referenceA, s.referenceB,
+    s.launchGps?.latitude, s.launchGps?.longitude, s.launchGps?.accuracy, s.launchGps?.capturedAt,
+    s.landingGps?.latitude, s.landingGps?.longitude, s.landingGps?.accuracy, s.landingGps?.capturedAt,
+    s.gpsChecks?.length ? JSON.stringify(s.gpsChecks) : ''
+  ]);
+  box.value = rows.map(row => row.map(cell).join(',')).join('\n') + '\n';
   box.style.display = 'block';
   box.focus();
   box.select();
@@ -1232,6 +1390,10 @@ function showCsv() {
 
 function renderDiagram() {
   const svg = $('diagram');
+  if (measurementMode() === 'gps') {
+    svg.innerHTML = '';
+    return;
+  }
   const hasBaseline = Boolean(setup && setup.baseline > 0);
   const hasTrebs = Boolean(trebs && trebs.length > 0);
   const hasShots = Boolean(shots && shots.length > 0);
@@ -1344,6 +1506,7 @@ function switchVisualizerView(mode) {
 }
 
 function initOrUpdateMap() {
+  if (currentEventTab !== 'visualization') return;
   if (typeof L === 'undefined') {
     $('mapNotice').innerHTML = '<span class="warn">Leaflet map library could not be loaded. Please check your internet connection.</span>';
     return;
@@ -1378,8 +1541,12 @@ function initOrUpdateMap() {
 }
 
 function renderMap() {
-  if (!leafletMap || !mapLayerGroup) return;
+  if (currentEventTab !== 'visualization' || !leafletMap || !mapLayerGroup) return;
   mapLayerGroup.clearLayers();
+  if (measurementMode() === 'gps') {
+    renderGpsMap();
+    return;
+  }
 
   const hasGps = setup &&
     setup.station_a_lat != null && setup.station_a_lng != null &&
@@ -1497,6 +1664,7 @@ function createMapMarker(position, kind, label, popup, letter = '', color = '#c9
 
 // Handle browser popstate navigation
 window.addEventListener('popstate', (e) => {
+  resetMeasurementDrafts();
   selectedShotId = null;
   spectator = /\/spectator\/?$/.test(window.location.pathname);
   editable = false;
@@ -1518,6 +1686,7 @@ window.addEventListener('popstate', (e) => {
 });
 
 // Initial boot logic
+updateNewEventMode();
 try {
   design = localStorage.getItem('td_design_v2') || 'scoreboard';
 } catch (err) {

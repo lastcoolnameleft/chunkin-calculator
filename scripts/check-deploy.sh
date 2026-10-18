@@ -27,6 +27,7 @@ process.stdin.on("end",()=>{
 '
 fetch / | grep 'Impact Distance Tracker' >/dev/null
 fetch /designs.css >/dev/null
+fetch /measurements.js >/dev/null
 fetch /how-it-works/ | grep 'How This Works' >/dev/null
 fetch /how-it-works/triangulation-diagram.png >/dev/null
 fetch /guide-assets/katex.min.css >/dev/null

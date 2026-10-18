@@ -4,13 +4,14 @@ test('angle help explains each reference direction and toggles by mouse or keybo
   const res = await request.post('/api/events', { data: { name: 'Angle Help Event', baseline: 50 } });
   const event = await res.json();
   await page.goto(`/event/${event.id}`);
-  await expect(page.locator('#setupCard')).toBeVisible();
+  await expect(page.locator('#shotEntryCard')).toBeVisible();
 
   for (const [field, name, phrases] of [
     ['angA', 'Help with Station A angle', ['Stand at Station A', 'Station B to set 0°', 'A→B sight line', 'A→impact sight line', 'Do not measure from the trebuchet']],
     ['angB', 'Help with Station B angle', ['Stand at Station B', 'Station A to set 0°', 'B→A sight line', 'B→impact sight line', 'less than 180°']],
     ['trebAngle', 'Help with trebuchet survey angle', ['Stand at Station A', 'Station B to set 0°', 'toward the trebuchet', 'negative', 'not its launch angle']]
   ]) {
+    await page.getByRole('tab', { name: field === 'trebAngle' ? 'Setup' : 'Log a Shot', exact: true }).click();
     const button = page.getByRole('button', { name, exact: true });
     const help = page.locator(`#${field}Help`);
     await expect(help).toBeHidden();
@@ -37,6 +38,7 @@ test('angle help explains each reference direction and toggles by mouse or keybo
     await expect(help).toBeHidden();
   }
   await page.setViewportSize({ width: 375, height: 667 });
+  await page.getByRole('tab', { name: 'Log a Shot', exact: true }).click();
   const mobileButton = page.getByRole('button', { name: 'Help with Station A angle', exact: true });
   await mobileButton.click();
   const box = await page.locator('#angAHelp').boundingBox();

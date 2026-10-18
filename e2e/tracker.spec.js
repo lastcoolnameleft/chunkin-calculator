@@ -8,7 +8,8 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   });
   const event = await created.json();
   await page.goto(`/event/${event.id}`);
-  await expect(page.locator('#setupCard')).toBeVisible();
+  await expect(page.locator('#shotEntryCard')).toBeVisible();
+  await page.getByRole('tab', { name: 'Visualization', exact: true }).click();
   await expect(page.locator('#mapWrapper')).toBeVisible();
   await expect(page.locator('#schematicContainer')).toBeHidden();
   await expect(page.locator('#shareUrlInput')).toHaveValue(`http://127.0.0.1:3088/event/${event.id}/spectator`);
@@ -17,13 +18,14 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   spectator.on('pageerror', error => errors.push(error.message));
   await spectator.goto(`/event/${event.id}/spectator`);
   await expect(spectator.locator('#eventSummaryName')).toHaveText(event.name);
-  await expect(spectator.locator('#trackerSection > :first-child')).toHaveAttribute('id', 'visualizerCard');
+  await expect(spectator.getByRole('tab', { name: 'Visualization', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(spectator.locator('#mapWrapper')).toBeVisible();
   await expect(spectator.locator('#btnMapView')).toHaveClass(/active/);
   await expect(spectator.locator('.editor-only:visible')).toHaveCount(0);
   await expect(spectator.locator('#unlockCard')).toBeHidden();
   await expect(spectator.locator('#switchEventContainer')).toBeHidden();
 
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await page.locator('#trebName').fill('Live Trebuchet');
   await page.locator('#trebDist').fill('20');
   await page.locator('#trebAngle').fill('-45');
@@ -34,6 +36,7 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await expect(spectator.locator('#diagram')).toContainText('Live Trebuchet');
   await expect(spectator.locator('.del')).toHaveCount(0);
 
+  await page.getByRole('tab', { name: 'Log a Shot', exact: true }).click();
   await page.locator('#trebSelect').selectOption({ label: 'Live Trebuchet' });
   await page.locator('#label').fill('Live Shot');
   await page.locator('#angA').fill('90');
@@ -50,8 +53,10 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await expect(spectator.locator('.del')).toHaveCount(0);
 
   await spectator.getByRole('button', { name: 'Satellite Map', exact: true }).click();
+  await page.getByRole('tab', { name: 'Visualization', exact: true }).click();
   await page.getByRole('button', { name: 'Satellite Map', exact: true }).click();
   await expect(spectator.locator('#mapNotice')).toContainText('Station GPS coordinates not configured');
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await page.locator('#baseline').fill('75');
   await page.locator('#unit').selectOption('m');
   await page.getByText('Optional: Satellite Map Overlay (GPS Coordinates)', { exact: true }).click();
@@ -64,6 +69,7 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await expect(spectator.locator('#mapNotice')).toContainText('Showing satellite overlay');
   await expect(spectator.locator('#mapNotice')).toContainText('illustration only');
   await expect(spectator.locator('#mapNotice')).toContainText('never GPS');
+  await page.getByRole('tab', { name: 'Visualization', exact: true }).click();
   await expect(page.locator('.event-map-marker')).toHaveCount(4);
   await expect(spectator.locator('.event-map-station')).toHaveCount(2);
   await expect(spectator.locator('.event-map-trebuchet')).toHaveCount(1);
@@ -80,22 +86,27 @@ test('spectators see live trebuchets, shots, setup, and visualizers without edit
   await expect(spectator.locator('.leaflet-popup')).toContainText('Dist from A: 20 m');
   const previousPositions = await page.evaluate(() =>
     mapLayerGroup.getLayers().filter(layer => layer instanceof L.Marker).map(layer => layer.getLatLng()));
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await page.locator('#stALat').fill('39.124456');
   await page.locator('#stBLat').fill('39.124567');
   await page.getByRole('button', { name: 'Save setup', exact: true }).click();
+  await page.getByRole('tab', { name: 'Visualization', exact: true }).click();
   await expect.poll(() => page.evaluate(() =>
     mapLayerGroup.getLayers().filter(layer => layer instanceof L.Marker).map(layer => layer.getLatLng())))
     .not.toEqual(previousPositions);
   await expect(page.locator('.event-map-marker')).toHaveCount(4);
   await spectator.getByRole('button', { name: 'Schematic', exact: true }).click();
   await expect(spectator.locator('#diagram')).toBeVisible();
+  await spectator.getByRole('tab', { name: 'Shot History', exact: true }).click();
   await spectator.getByRole('button', { name: 'Show CSV', exact: false }).click();
   await expect(spectator.locator('#csvBox')).toHaveValue(/Live Shot/);
   await expect(spectator.locator('#csvBox')).toHaveAttribute('readonly', '');
 
+  await page.getByRole('tab', { name: 'Shot History', exact: true }).click();
   await page.locator('#shotBody .del').click();
   await expect(spectator.locator('#shotBody')).toContainText('No shots logged', { timeout: 10000 });
   await expect(spectator.locator('#diagram')).not.toContainText('Live Shot');
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await page.locator('#trebBody .del').click();
   await expect(spectator.locator('#trebBody')).toContainText('No trebuchets added', { timeout: 10000 });
   expect(errors).toEqual([]);
@@ -114,15 +125,17 @@ test('protected editor unlocks with its shared password, locks again, and can re
   await expect(page.locator('#globalError')).toContainText('Incorrect event password');
   await page.locator('#eventPassword').fill('browser-password');
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await expect(page.locator('#setupCard')).toBeVisible();
   await expect(page.locator('#unlockCard')).toBeHidden();
 
   await page.reload();
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await expect(page.locator('#setupCard')).toBeVisible();
   await expect(page.locator('#unlockCard')).toBeHidden();
   const anotherTab = await page.context().newPage();
   await anotherTab.goto(`/event/${event.id}`);
-  await expect(anotherTab.locator('#setupCard')).toBeVisible();
+  await expect(anotherTab.locator('#shotEntryCard')).toBeVisible();
   await anotherTab.goto(`/event/${event.id}/spectator`);
   await expect(anotherTab.locator('.editor-only:visible')).toHaveCount(0);
   await anotherTab.close();
@@ -134,6 +147,7 @@ test('protected editor unlocks with its shared password, locks again, and can re
   await expect(page.locator('#unlockCard')).toBeVisible();
   await page.locator('#eventPassword').fill('browser-password');
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await expect(page.locator('#setupCard')).toBeVisible();
   await page.getByText('Editing access', { exact: true }).click();
   await page.locator('#changeEventPassword').fill('replacement-password');
@@ -146,6 +160,7 @@ test('protected editor unlocks with its shared password, locks again, and can re
   await page.getByRole('button', { name: 'Save password', exact: true }).click();
   await expect(page.locator('#accessNotice')).toContainText('No password set');
   await page.reload();
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await expect(page.locator('#setupCard')).toBeVisible();
 });
 

@@ -35,11 +35,12 @@ function getTrebuchetPosition(treb) {
   };
 }
 
-function calculateShot({ angA, angB, baseline, treb = null, label = '', known = null }) {
+function calculateShot({ angA, angB, baseline, treb = null, label = '', known = null, impactSide = 1 }) {
   const impact = computeShot(angA, angB, baseline);
   if (!impact) {
     return null;
   }
+  if (impactSide === -1) impact.py = -impact.py;
 
   let tx = 0;
   let ty = 0;
@@ -71,6 +72,17 @@ function calculateShot({ angA, angB, baseline, treb = null, label = '', known = 
 
 function radiansToDegrees(rad) {
   return (rad * 180) / Math.PI;
+}
+
+function bearingDifference(from, to) {
+  return ((from - to + 540) % 360 + 360) % 360 - 180;
+}
+
+function bearingsToAngles(referenceA, referenceB, bearingA, bearingB) {
+  const a = bearingDifference(referenceA, bearingA);
+  const b = bearingDifference(bearingB, referenceB);
+  if (a * b <= 0 || Math.abs(a) + Math.abs(b) >= 180) return null;
+  return { angA: Math.abs(a), angB: Math.abs(b), impactSide: Math.sign(a) };
 }
 
 /**
@@ -111,7 +123,8 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2, unit = 'ft') {
   const a =
     Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
     Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const boundedA = Math.max(0, Math.min(1, a));
+  const c = 2 * Math.atan2(Math.sqrt(boundedA), Math.sqrt(1 - boundedA));
 
   return R * c;
 }
@@ -170,6 +183,8 @@ module.exports = {
   computeShot,
   getTrebuchetPosition,
   calculateShot,
+  bearingDifference,
+  bearingsToAngles,
   calculateBearing,
   calculateHaversineDistance,
   localXYToLatLng

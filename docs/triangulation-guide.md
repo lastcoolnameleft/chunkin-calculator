@@ -9,29 +9,42 @@ This guide explains how to plan and set up observation stations for measuring im
 
 ![Triangulation Setup](./triangulation-diagram.png)
 
+## Choose GPS or Compass Bearings
+
+An event's measurement mode determines its setup and entry screen:
+
+- **GPS locations** needs only each trebuchet's launch coordinates and each shot's landing coordinates. Select the firing trebuchet, then capture GPS while standing at the marked landing point during a safe recovery period, or enter coordinates manually. There are no observation stations or baseline. The distance is calculated directly between the two geographic positions, not from map pixels. GPS capture requires HTTPS and location permission and previews the position before saving. Accuracy depends on both coordinate fixes; reported accuracy is in meters and is an estimate, not a guarantee. Manually entered coordinates have unknown accuracy.
+- **Compass bearings** uses two stations and the existing triangulation formulas below. Measure the baseline once. At A, sight B and save the compass bearing; at B, sight A and save that bearing. Survey each trebuchet by its distance and compass bearing from A. Each shot then needs only the two forward bearings toward impact. Read the black degree scale at the sighting index, keep the compass level, and do not rotate the bezel or subtract readings. Use the same compass at each station for its reference and shot readings. The app converts bearings into the triangle's angles, handles crossings of north, and preserves which side of the baseline the impact is on.
+
+Compass events can enable **Allow GPS checks**. Save launch GPS with the survey, or explicitly confirm launch coordinates when checking a shot. Later, use **Add GPS check** to record its landing position. GPS checks are separate, append-only measurements: they show the GPS distance and difference without changing the compass result.
+
+Keep compasses away from steel trebuchets, vehicles, and other magnetic interference. Reference bearings that are not approximately opposite and shallow sighting geometry produce warnings, but warnings cannot detect every bad reading. Practice with known targets before the event.
+
 ## The Short Version: Two Spotters Find One Impact
 
 Imagine two people standing at fixed observation points, both pointing at the same point of impact. Each person's sight line is like an invisible string stretching across the target area. The place where those two strings cross is the point of impact.
 
 We measure the distance between the two observation stations just once. That distance is called the **baseline**. Together, the baseline and the two sight lines form a triangle. Knowing one side and the two corner angles is enough for the computer to work out the point of impact.
 
-**The spotters do not need to do any math:**
+**For compass events**, the spotters report the magnetic bearings toward impact. The app compares each with that station's saved reference bearing. No declination conversion is needed for those same-compass angle differences; aligning magnetic directions with GPS/map north is a separate issue.
+
+**The spotters do not need to do any math.** For legacy angle entry:
 
 1. At **Station A**, point the angle gauge toward **Station B** and call that zero. When the impact happens, turn toward it and report how many degrees you turned.
 2. At **Station B**, do the reverse: zero toward **Station A**, then turn toward the same impact and report that angle.
 3. The submitter selects the firing trebuchet and enters both readings. The website calculates the distance and adds the result to the live shot log.
 
-The angle is measured **at the station**, between the direction toward the other station and the direction toward the impact. It is not the trebuchet's firing angle and not an absolute compass bearing.
+The triangle angle is measured **at the station**, between the direction toward the other station and the direction toward the impact. It is not the trebuchet's firing angle. Legacy events require that angle directly; compass events take absolute compass readings and calculate the angle for you.
 
 ### Why We Survey Each Trebuchet
 
-The triangle tells us how far the impact is from Station A, but the trebuchet may be somewhere else! Before the event, we measure each trebuchet's distance and angle from A. The computer uses that fixed starting position to calculate the straight-line distance **from the firing trebuchet to the impact**. If no trebuchet is selected, it measures from Station A instead.
+The triangle tells us how far the impact is from Station A, but the trebuchet may be somewhere else! Before the event, we measure each trebuchet's distance and bearing (or legacy angle) from A. The computer uses that fixed starting position to calculate the straight-line distance **from the firing trebuchet to the impact**. New compass and GPS events require selecting a trebuchet. Only legacy angle events allow measuring from Station A with no trebuchet selected.
 
 ### What the Visualizers Show
 
 The **satellite map** uses optional station GPS coordinates to place station, trebuchet, and impact icons over the target area. The **schematic** shows the same layout on a simple plot without needing GPS. The icons and shot log update as new readings arrive.
 
-GPS is only used to position the map overlay. The layout is scaled to fit both GPS station positions, so it agrees with the schematic even if GPS puts the stations a different distance apart than the measured baseline. **The map is an illustration, not a distance measurement:** plotted locations and map distances may be inaccurate. The competition distance comes from the measured baseline, trebuchet survey, and two sighting angles entered in the forms, never from GPS. Those inputs remain unchanged by map scaling. A convincing-looking map does not guarantee accurate readings: both spotters must sight the same impact and use the correct zero direction, and calculated accuracy depends on the field measurements.
+**In triangulation events**, station GPS is only used to position the map overlay. The layout is scaled to fit both GPS station positions, so it agrees with the schematic even if GPS puts the stations a different distance apart than the measured baseline. **That overlay is an illustration, not a distance measurement:** plotted locations and map distances may be inaccurate. The triangulated competition distance comes from the measured baseline, trebuchet survey, and two sighting angles (entered directly or converted from bearings), never from the station GPS overlay. Those inputs remain unchanged by map scaling. A convincing-looking map does not guarantee accurate readings: both spotters must sight the same impact, and calculated accuracy depends on the field measurements. GPS events instead plot their actual saved geographic coordinates and do not invent observation stations.
 
 ## The Math Behind the Result
 
