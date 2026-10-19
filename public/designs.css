@@ -20,7 +20,7 @@
 #designDescription { color: var(--accent); flex: 1; min-width: 180px; line-height: 1.5; }
 #resultsCard { display: block; }
 .event-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 18px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
-.event-tabs [role="tab"] { min-width: 0; min-height: 48px; padding: 10px 8px; background: transparent; color: var(--accent); border: 1px solid transparent; border-radius: 6px; }
+.event-tabs [role="tab"] { min-width: 0; min-height: 48px; padding: 10px 8px; background: transparent; color: var(--accent); border: 1px solid transparent; border-radius: 6px; overflow-wrap: anywhere; }
 .event-tabs [aria-selected="true"] { background: var(--deep); color: var(--paper); border-color: var(--deep); }
 .event-panel { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .event-panel > .card, .event-panel > .share-bar { margin-bottom: 0; }

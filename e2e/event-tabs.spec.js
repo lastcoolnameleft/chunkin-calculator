@@ -119,6 +119,11 @@ test('every task fits small phones in all designs for both event modes', async (
         const tab = await page.getByRole('tab', { name, exact: true }).boundingBox();
         expect(tab.width).toBeGreaterThan(0);
         expect(tab.height).toBeGreaterThanOrEqual(44);
+        const labels = await page.locator('.event-tabs [role="tab"]:visible').evaluateAll(buttons =>
+          buttons.map(button => ({ name: button.textContent, width: button.clientWidth, contentWidth: button.scrollWidth })));
+        for (const label of labels) {
+          expect(label.contentWidth, `${design}: ${label.name} fits its tab`).toBeLessThanOrEqual(label.width);
+        }
       }
     }
   }
