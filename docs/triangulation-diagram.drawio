@@ -1,11 +1,11 @@
 <mxfile host="65bd71144e">
     <diagram name="Triangulation Setup" id="triSetup1">
-        <mxGraphModel dx="1476" dy="537" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="650" math="0" shadow="0">
+        <mxGraphModel dx="1804" dy="1136" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="650" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="D9vn8NFDXO_VLS19Kndg-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="" vertex="1">
-                    <mxGeometry height="650" width="1200" x="-420" as="geometry"/>
+                    <mxGeometry height="430" width="780" x="-10" as="geometry"/>
                 </mxCell>
                 <mxCell id="edgeAB" edge="1" parent="1" source="A" style="endArrow=none;html=1;strokeColor=#B4B2A9;strokeWidth=2;dashed=1;" target="B">
                     <mxGeometry relative="1" as="geometry"/>
@@ -52,10 +52,10 @@
                     </mxGeometry>
                 </mxCell>
                 <mxCell id="legend1" parent="1" style="text;html=1;align=left;fontColor=#888780;fontSize=11;" value="gray = surveyed once (distance + angle from A)&lt;div&gt;&amp;nbsp; &amp;nbsp; - measure distance between trebuchet and station A&lt;/div&gt;&lt;div&gt;&amp;nbsp; &amp;nbsp; - measure distance between station A and Station B&lt;/div&gt;" vertex="1">
-                    <mxGeometry height="60" width="320" x="450" y="30" as="geometry"/>
+                    <mxGeometry height="60" width="320" x="430" y="20" as="geometry"/>
                 </mxCell>
                 <mxCell id="legend2" parent="1" style="text;html=1;align=left;fontColor=#534AB7;fontSize=11;" value="purple = angle sighted at time of splash&lt;div&gt;&amp;nbsp; &amp;nbsp; - measure angle between Stations &amp;amp; Splash&lt;br&gt;&lt;/div&gt;" vertex="1">
-                    <mxGeometry height="40" width="320" x="450" y="90" as="geometry"/>
+                    <mxGeometry height="40" width="320" x="440" y="95" as="geometry"/>
                 </mxCell>
                 <mxCell id="61zq9GeNbJCBJ8Scp14T-12" edge="1" parent="1" style="endArrow=classic;startArrow=classic;html=1;rounded=0;curved=1;dashed=1;strokeColor=#B266FF;" value="">
                     <mxGeometry height="50" relative="1" width="50" as="geometry">
@@ -86,7 +86,7 @@
                     </mxGeometry>
                 </mxCell>
                 <mxCell id="61zq9GeNbJCBJ8Scp14T-20" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;" value="Dashed Lines = measured&lt;div&gt;Dotted Lines&amp;nbsp; &amp;nbsp;= calculated&lt;/div&gt;" vertex="1">
-                    <mxGeometry height="30" width="180" x="450" y="140" as="geometry"/>
+                    <mxGeometry height="30" width="180" x="510" y="160" as="geometry"/>
                 </mxCell>
                 <mxCell id="61zq9GeNbJCBJ8Scp14T-21" edge="1" parent="1" style="endArrow=none;html=1;strokeColor=#B4B2A9;strokeWidth=2;dashed=1;rounded=0;curved=1;">
                     <mxGeometry relative="1" as="geometry">
@@ -101,12 +101,6 @@
                     <mxGeometry relative="1" x="0.1192" y="-12" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
-                </mxCell>
-                <mxCell id="61zq9GeNbJCBJ8Scp14T-24" parent="1" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Hard Math&lt;/h1&gt;&lt;div&gt;&lt;p dir=&quot;ltr&quot;&gt;Let &lt;em&gt;d&lt;/em&gt; = baseline distance AB (measured once).&amp;nbsp;&lt;br&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;At the splash, Station A reads angle α, Station B reads angle β.&lt;/span&gt;&lt;/p&gt;&lt;p dir=&quot;ltr&quot;&gt;Angle at splash: γ = 180° − α − β&lt;br&gt;Distance A→splash: AP = d · sin(β) / sin(γ)&lt;br&gt;Distance B→splash: BP = d · sin(α) / sin(γ)&lt;br&gt;Self-check: AB_check = √(AP² + BP² − 2·AP·BP·cos γ)&lt;br&gt;Splash coordinates: x = AP·cos(α), y = AP·sin(α)&lt;br&gt;Trebuchet→splash distance: √((x_splash − x_treb)² + (y_splash − y_treb)²)&lt;/p&gt;&lt;/div&gt;&lt;p dir=&quot;ltr&quot;&gt;&lt;/p&gt;" vertex="1">
-                    <mxGeometry height="190" width="430" x="130" y="440" as="geometry"/>
-                </mxCell>
-                <mxCell id="61zq9GeNbJCBJ8Scp14T-26" parent="1" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Plain-ish English&lt;/h1&gt;&lt;ol dir=&quot;ltr&quot;&gt;&lt;li&gt;Measure the distance between your two watchers once. That&#39;s your ruler for everything else.&lt;/li&gt;&lt;br&gt;&lt;li&gt;When the ball splashes, each watcher just points at it and reads one number off their sighting tool (the angle between &quot;the other watcher&quot; and &quot;the splash.&quot;)&lt;/li&gt;&lt;br&gt;&lt;li&gt;Those two angles tell you the shape of the triangle formed by the two watchers and the splash. A bigger or smaller angle stretches or shrinks that triangle, which is what turns your one measured distance into the actual distance to the splash.&lt;/li&gt;&lt;br&gt;&lt;li&gt;You do this exact same trick once, ahead of time, to pin down where each trebuchet sits — same two watchers, same idea, just aimed at a fixed spot instead of a splash.&lt;/li&gt;&lt;br&gt;&lt;li&gt;Now that you know exactly where the trebuchet is and exactly where the splash is, finding the distance between them is just like measuring between two dots on a map with a ruler.&lt;/li&gt;&lt;br&gt;&lt;/ol&gt;" vertex="1">
-                    <mxGeometry height="440" width="440" x="-390" y="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="61zq9GeNbJCBJ8Scp14T-27" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" value="Surveyor" vertex="1">
                     <mxGeometry height="40" width="20" x="80" y="260" as="geometry"/>
