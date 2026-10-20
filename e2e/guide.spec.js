@@ -13,9 +13,10 @@ test('how this works renders the shared Markdown guide with equations and its di
   for (const heading of headings) {
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
   }
-  await expect(page.locator('main')).toContainText('The spotters do not need to do any math');
-  await expect(page.locator('main')).toContainText('not the accuracy of the spotters');
-  expect(await page.locator('.katex').count()).toBeGreaterThan(10);
+  await expect(page.locator('main')).toContainText('Spotters report bearings; the app does the math.');
+  await expect(page.locator('main')).toContainText('There is no fixed margin of error.');
+  await expect(page.locator('main')).toContainText('a 1° error at B changes the calculated distance by about 9 ft');
+  await expect(page.locator('.katex')).toHaveCount(2);
   await expect(page.locator('.katex-error')).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'Triangulation Setup' })).toBeVisible();
   expect(await page.getByRole('img', { name: 'Triangulation Setup' }).evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
