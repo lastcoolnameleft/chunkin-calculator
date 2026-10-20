@@ -11,17 +11,26 @@ Spotters report bearings; the app does the math. For legacy angle events, enter 
 
 ![Triangulation Setup](./triangulation-diagram.png)
 
-## GPS instead
-
-GPS events need only a launch location and a landing location. Capture each while standing there, review the map pin, then save. Visit landing points only when the field is safe.
-
-In compass events, **Allow GPS checks** adds a separate GPS comparison; it never changes the compass score. Station GPS coordinates position the map overlay, not the compass distance.
-
 ## How much error should I expect?
 
 **There is no fixed margin of error.** It depends on your readings and the station layout.
 
-- **Small angle errors matter.** With a 100 ft baseline and a target 200 ft straight ahead of A, a 1° error at B changes the calculated distance by about 9 ft.
+### Small angle errors matter
+
+**Station spacing matters relative to the launch distance.** 
+
+For a **200 ft launch distance** and a **1° error at B only**, the small-error estimates are:
+
+| Station spacing (d) | Launch distance / spacing (R / d) | Distance error | Error ratio |
+|---|---|---|---|
+| 25 ft | 8:1 | ≈ 28.4 ft | ≈ 14.2% |
+| 50 ft | 4:1 | ≈ 14.8 ft | ≈ 7.4% |
+| 100 ft | 2:1 | ≈ 8.7 ft | ≈ 4.4% |
+| 200 ft | 1:1 | ≈ 7.0 ft | ≈ 3.5% |
+
+
+### Other factors
+
 - **Geometry matters.** Distant targets and nearly parallel sight lines magnify errors. Wider station spacing can help.
 - **Check your setup.** Keep compasses away from steel and vehicles. Repeatedly sight one fixed target to check consistency, and verify each trebuchet's survey.
 - **GPS has uncertainty too.** The reported accuracy applies to each position fix; it is not a guaranteed error bound on the shot distance.
