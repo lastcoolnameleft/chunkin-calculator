@@ -1,6 +1,12 @@
 const gpsCaptures = new Map();
 const gpsRequests = new Map();
 let gpsCheckShotId = null;
+let gpsLocationEditor = null;
+const gpsLocationNames = {
+  launch: 'Launch location', landing: 'Landing location',
+  checkLaunch: 'Check launch location', checkLanding: 'Check landing location',
+  stA: 'Station A', stB: 'Station B'
+};
 
 function measurementMode() {
   return currentEvent?.measurementMode || 'angles';
@@ -18,6 +24,7 @@ function gpsFields(prefix, name) {
       <div class="field"><label for="${prefix}Lng">${name} longitude</label><input id="${prefix}Lng" type="number" inputmode="decimal" min="-180" max="180" step="any"></div>
     </div>
     <button type="button" class="secondary measurement-block" onclick="captureGps('${prefix}')">Capture GPS at ${name.toLowerCase()}</button>
+    <button type="button" class="secondary measurement-block" onclick="openGpsLocationMap('${prefix}')">Review / adjust ${name.toLowerCase()} on map</button>
     <p class="tiny" id="${prefix}Status" role="status">Enter coordinates manually, or capture this device's location while standing at the marked point. Capture does not save a measurement.</p>
   </fieldset>`;
 }
@@ -29,6 +36,9 @@ for (const [container, prefix, name] of [
   ['checkLandingGpsFields', 'checkLanding', 'Check landing location']
 ]) {
   document.getElementById(container).innerHTML = gpsFields(prefix, name);
+}
+
+for (const prefix of Object.keys(gpsLocationNames)) {
   for (const axis of ['Lat', 'Lng']) {
     document.getElementById(prefix + axis).addEventListener('input', () => {
       gpsCaptures.delete(prefix);
@@ -97,13 +107,95 @@ function captureGps(prefix) {
       latitude: position.coords.latitude, longitude: position.coords.longitude,
       accuracy: position.coords.accuracy, capturedAt: new Date(position.timestamp).toISOString()
     });
+    openGpsLocationMap(prefix);
   }, error => {
     if (eventId !== currentEventId || gpsRequests.get(prefix) !== request) return;
     status.textContent = `GPS capture failed: ${error.message}. Check location permission and HTTPS, or enter coordinates manually.`;
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
 }
 
+function openGpsLocationMap(prefix) {
+  if (!requireEditing()) return;
+  const point = readGpsFields(prefix);
+  const latitude = Number(point.latitude), longitude = Number(point.longitude);
+  if (point.latitude === '' || point.longitude === '' || !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+    $(prefix + 'Status').textContent = 'Capture GPS or enter valid latitude and longitude before opening the map.';
+    return;
+  }
+  if (typeof L === 'undefined') {
+    $(prefix + 'Status').textContent = 'The map library could not be loaded. Check your internet connection, or adjust coordinates manually.';
+    return;
+  }
+  closeGpsLocationMap();
+  $('gpsLocationHeading').textContent = `Review ${gpsLocationNames[prefix].toLowerCase()}`;
+  $('gpsLocationMapStatus').textContent = '';
+  $('gpsLocationDialog').showModal();
+  const map = L.map('gpsLocationMap', { maxZoom: 19 }).setView([latitude, longitude], 19);
+  const marker = L.marker([latitude, longitude], {
+    draggable: true,
+    title: 'Location pin: drag to adjust',
+    icon: L.divIcon({
+      className: 'gps-location-marker', html: '<span class="gps-location-pin"></span>',
+      iconSize: [32, 32], iconAnchor: [16, 16]
+    })
+  }).addTo(map);
+  gpsLocationEditor = { prefix, eventId: currentEventId, checkId: gpsCheckShotId, map, marker, point, adjusted: false };
+  const update = position => {
+    const location = position.wrap();
+    marker.setLatLng([Math.max(-90, Math.min(90, location.lat)), location.lng]);
+    gpsLocationEditor.adjusted = true;
+    renderGpsLocationCoordinates();
+  };
+  marker.on('dragend', () => update(marker.getLatLng()));
+  map.on('click', event => update(event.latlng));
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19
+  }).on('tileerror', () => {
+    $('gpsLocationMapStatus').textContent = 'Satellite imagery could not be loaded. Check your connection; you can still enter coordinates manually.';
+  }).addTo(map);
+  renderGpsLocationCoordinates();
+  requestAnimationFrame(() => map.invalidateSize());
+}
+
+function renderGpsLocationCoordinates() {
+  const { marker, point, adjusted } = gpsLocationEditor;
+  const location = marker.getLatLng();
+  $('gpsLocationCoordinates').textContent = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}. ${
+    adjusted ? 'Map-adjusted position: GPS accuracy and capture time will be cleared.' : gpsQuality(point) + '.'
+  }`;
+}
+
+function applyGpsLocationMap() {
+  if (!gpsLocationEditor || !requireEditing()) return;
+  const { prefix, eventId, checkId, marker, adjusted } = gpsLocationEditor;
+  if (eventId !== currentEventId || prefix.startsWith('check') && checkId !== gpsCheckShotId) {
+    closeGpsLocationMap();
+    return;
+  }
+  if (adjusted) {
+    const location = marker.getLatLng();
+    setGpsFields(prefix, { latitude: location.lat, longitude: location.lng, accuracy: null, capturedAt: null });
+    $(prefix + 'Status').textContent = 'Map-adjusted coordinates. Reported GPS accuracy and capture time are unknown. Save the form to store this location.';
+  }
+  closeGpsLocationMap();
+}
+
+function closeGpsLocationMap() {
+  if (gpsLocationEditor) {
+    gpsLocationEditor.map.remove();
+    gpsLocationEditor = null;
+  }
+  if ($('gpsLocationDialog').open) $('gpsLocationDialog').close();
+}
+
+document.getElementById('gpsLocationDialog').addEventListener('cancel', event => {
+  event.preventDefault();
+  closeGpsLocationMap();
+});
+
 function resetMeasurementDrafts() {
+  closeGpsLocationMap();
   gpsCaptures.clear();
   gpsRequests.clear();
   closeGpsCheck();
@@ -125,7 +217,7 @@ function renderMeasurementMode() {
   const difference = setup?.referenceA != null && setup?.referenceB != null
     ? Math.abs(((setup.referenceA - setup.referenceB + 540) % 360) - 180) : 180;
   $('referenceWarning').textContent = mode === 'bearings' && difference < 175
-    ? 'Reference readings should be approximately opposite. Recheck away from magnetic interference; agreement does not prove accuracy.' : '';
+    ? `Reference readings should differ by 180° (opposite directions). Their shortest angular difference is ${difference.toFixed(1)}°, which is ${(180 - difference).toFixed(1)}° off. Recheck away from magnetic interference; agreement does not prove accuracy.` : '';
   $('trebInstructions').textContent = {
     gps: 'Record the launch GPS position for each trebuchet. No observation stations, baseline, or compass readings are needed.',
     bearings: 'One-time survey: measure the distance from Station A to the trebuchet, then sight it from A and enter the forward compass bearing. Use the same compass as the A→B reference.',
@@ -135,7 +227,6 @@ function renderMeasurementMode() {
   $('trebColumn3').textContent = mode === 'gps' ? 'Longitude' : mode === 'bearings' ? 'Bearing' : 'Angle';
   $('shotColumnA').textContent = mode === 'gps' ? 'Landing latitude' : mode === 'bearings' ? 'A bearing' : '∠A';
   $('shotColumnB').textContent = mode === 'gps' ? 'Landing longitude' : mode === 'bearings' ? 'B bearing' : '∠B';
-  $('shotCheckColumn').textContent = mode === 'gps' ? 'GPS quality' : 'Baseline check';
   if (mode === 'gps' && currentVisualizerView !== 'map') switchVisualizerView('map');
   renderMeasurementSummary();
 }
@@ -175,6 +266,7 @@ function openGpsCheck(id) {
 }
 
 function closeGpsCheck() {
+  if (gpsLocationEditor?.prefix.startsWith('check')) closeGpsLocationMap();
   gpsCheckShotId = null;
   gpsRequests.delete('checkLaunch');
   gpsRequests.delete('checkLanding');

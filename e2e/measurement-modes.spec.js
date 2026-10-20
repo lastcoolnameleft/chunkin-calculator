@@ -20,6 +20,7 @@ test('GPS event creation, capture, shots, export and spectator maps need no stat
   await page.getByRole('button', { name: 'Capture GPS at launch location', exact: true }).click();
   await expect(page.locator('#launchLat')).toHaveValue('39.1');
   await expect(page.locator('#launchStatus')).toContainText('±3 m');
+  await page.getByRole('button', { name: 'Use location', exact: true }).click();
   await page.getByRole('button', { name: 'Add trebuchet', exact: true }).click();
   await expect(page.locator('#trebBody')).toContainText('GPS Launcher');
   await page.getByRole('tab', { name: 'Log a Shot', exact: true }).click();
@@ -28,6 +29,7 @@ test('GPS event creation, capture, shots, export and spectator maps need no stat
   await context.setGeolocation({ latitude: 39.1005, longitude: -76.9, accuracy: 5 });
   await page.getByRole('button', { name: 'Capture GPS at landing location', exact: true }).click();
   await expect(page.locator('#landingStatus')).toContainText('±5 m');
+  await page.getByRole('button', { name: 'Use location', exact: true }).click();
   const eventId = new URL(page.url()).pathname.split('/').pop();
   expect(await (await request.get(`/api/events/${eventId}/shots`)).json()).toEqual([]);
   await page.getByRole('button', { name: 'Add shot', exact: true }).click();
@@ -91,11 +93,22 @@ test('compass setup and entry keep raw bearings and attach GPS backup without ch
   await expect(page.locator('#lastResult')).toContainText('do not meet');
   await expect(page.locator('#shotBody')).toContainText('No shots logged');
   await page.locator('#bearingB').fill('330');
+  await page.locator('#known').fill('55');
   await page.getByRole('button', { name: 'Add shot', exact: true }).click();
   await expect(page.locator('#latestDistance')).toHaveText('50.0 ft');
+  await expect(page.locator('#lastResult')).toContainText('Known actual distance: 55 ft · Error: 9.1%');
+  await expect(page.locator('#lastResult')).not.toContainText('Baseline');
   await page.screenshot({ path: testInfo.outputPath('compass-event.png'), fullPage: true });
   await expect(page.locator('#shotBody')).toContainText('30°');
   await page.getByRole('tab', { name: 'Shot History', exact: true }).click();
+  await expect(page.getByRole('columnheader', { name: 'Known actual distance', exact: true })).toBeVisible();
+  await expect(page.locator('#shotBody tr').first().locator('td').nth(5)).toHaveText('55 ft');
+  await expect(page.locator('#shotBody tr').first().locator('td').nth(6)).toHaveText('9.1%');
+  await expect(page.getByRole('columnheader', { name: 'Baseline check', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: 'GPS quality', exact: true })).toBeHidden();
+  await page.getByText('Calculation details', { exact: true }).click();
+  await expect(page.locator('#shotBody details')).toContainText('Baseline consistency check: 50.0 ft');
+  await page.getByText('Calculation details', { exact: true }).click();
   await page.getByRole('button', { name: 'Add GPS check for Compass round', exact: true }).click();
   await expect(page.locator('#checkLaunchLat')).toHaveValue('39');
   await page.locator('#checkLandingLat').fill('39.0002');
@@ -112,8 +125,10 @@ test('compass setup and entry keep raw bearings and attach GPS backup without ch
   expect(shots[0].gpsChecks).toHaveLength(1);
   await page.reload();
   await expect(page.locator('#shotBody')).toContainText('GPS check:');
+  await expect(page.locator('#shotBody tr').first().locator('td').nth(5)).toHaveText('55 ft');
   await page.goto(`/event/${eventId}/spectator`);
   await expect(page.locator('#shotBody')).toContainText('GPS check:');
+  await expect(page.locator('#shotBody tr').first().locator('td').nth(5)).toHaveText('55 ft');
   await expect(page.getByRole('button', { name: 'Add GPS check for Compass round', exact: true })).toHaveCount(0);
 });
 
@@ -124,6 +139,7 @@ test('manual edits clear captured GPS accuracy, failures are explicit, and switc
   await page.goto(`/event/${event.id}`);
   await page.getByRole('button', { name: 'Capture GPS at launch location', exact: true }).click();
   await expect(page.locator('#launchStatus')).toContainText('±4 m');
+  await page.getByRole('button', { name: 'Use location', exact: true }).click();
   await page.locator('#launchLat').fill('0.001');
   await expect(page.locator('#launchStatus')).toContainText('accuracy and capture time are unknown');
   await page.getByRole('button', { name: 'Add trebuchet', exact: true }).click();
@@ -135,6 +151,7 @@ test('manual edits clear captured GPS accuracy, failures are explicit, and switc
   await page.evaluate(() => {
     navigator.geolocation.getCurrentPosition = (success, failure) => failure({ message: 'Permission denied' });
   });
+
   await page.getByRole('button', { name: 'Capture GPS at landing location', exact: true }).click();
   await expect(page.locator('#landingStatus')).toContainText('GPS capture failed: Permission denied');
   await page.locator('#landingLat').fill('39');
@@ -147,18 +164,64 @@ test('manual edits clear captured GPS accuracy, failures are explicit, and switc
   await expect(page.locator('#launchLat')).toHaveValue('');
 });
 
-test('both new modes fit a small phone in every modern design', async ({ page, request }) => {
+test('reference warnings show expected separation, actual separation and degrees off across north', async ({ page, request }) => {
+  const event = await (await request.post('/api/events', {
+    data: { name: 'Reference warning', measurementMode: 'bearings' }
+  })).json();
+  await page.goto(`/event/${event.id}`);
+  await expect(page.locator('#referenceWarning')).toBeEmpty();
+  for (const [referenceA, referenceB, difference, off] of [
+    [13, 187, '174.0', '6.0'],
+    [350, 10, '20.0', '160.0'],
+    [0, 174.5, '174.5', '5.5'],
+    [350, 170, null, null],
+    [0, 175, null, null]
+  ]) {
+    const response = await request.post(`/api/events/${event.id}/setup`, {
+      data: { baseline: 50, unit: 'ft', referenceA, referenceB }
+    });
+    expect(response.ok()).toBe(true);
+    await page.reload();
+    await expect(page.locator('#referenceA')).toHaveValue(String(referenceA));
+    if (difference === null) {
+      await expect(page.locator('#referenceWarning')).toBeEmpty();
+    } else {
+      await expect(page.locator('#referenceWarning')).toHaveText(
+        `Reference readings should differ by 180° (opposite directions). Their shortest angular difference is ${difference}°, which is ${off}° off. Recheck away from magnetic interference; agreement does not prove accuracy.`
+      );
+    }
+  }
+});
+
+test('known actual distances distinguish zero from missing and retain shot units', async ({ page, request }) => {
+  const event = await (await request.post('/api/events', {
+    data: { name: 'Known distances', baseline: 96, unit: 'ft', measurementMode: 'angles' }
+  })).json();
+  for (const known of [0, null]) {
+    const response = await request.post(`/api/events/${event.id}/shots`, {
+      data: { angA: 60, angB: 60, known }
+    });
+    expect(response.ok()).toBe(true);
+  }
+  await request.post(`/api/events/${event.id}/setup`, { data: { baseline: 96, unit: 'm' } });
+  await page.goto(`/event/${event.id}/spectator`);
+  await page.getByRole('tab', { name: 'Shot History', exact: true }).click();
+  const rows = page.locator('#shotBody tr');
+  await expect(rows.nth(0).locator('td').nth(5)).toHaveText('0 ft');
+  await expect(rows.nth(0).locator('td').nth(6)).toHaveText('N/A (actual distance is zero)');
+  await expect(rows.nth(1).locator('td').nth(5)).toHaveText('—');
+  await expect(rows.nth(1).locator('td').nth(6)).toHaveText('—');
+});
+
+test('both new modes fit a small phone', async ({ page, request }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   for (const mode of ['gps', 'bearings']) {
     const event = await (await request.post('/api/events', { data: { name: `Phone ${mode}`, measurementMode: mode } })).json();
     await page.goto(`/event/${event.id}`);
     await expect(page.locator('#eventSummaryName')).toHaveText(event.name);
-    for (const design of ['field', 'scoreboard', 'bright']) {
-      await page.locator('#designSelect').selectOption(design);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-      await page.getByRole('tab', { name: 'Log a Shot', exact: true }).click();
-      const input = page.locator(mode === 'gps' ? '#landingLat' : '#bearingA');
-      expect((await input.boundingBox()).height).toBeGreaterThanOrEqual(48);
-    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    await page.getByRole('tab', { name: 'Log a Shot', exact: true }).click();
+    const input = page.locator(mode === 'gps' ? '#landingLat' : '#bearingA');
+    expect((await input.boundingBox()).height).toBeGreaterThanOrEqual(48);
   }
 });

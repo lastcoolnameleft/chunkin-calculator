@@ -107,6 +107,8 @@ Open `http://localhost:3000` (including editor or spectator event URLs). Changes
 
 The runner loads `.env` when present. `PORT` sets the browser-facing port (default `3000`); `BACKEND_PORT` sets the backend port (default `PORT + 1`). Both ports must be available. Development uses the usual SQLite database, so remembered editing access survives backend restarts. Use `npm start` without live reload for normal hosting.
 
+To use the production database copy in `data/prod-snapshot/tracker.db`, run `./scripts/run-local.sh --prod-snapshot` (or `npm run dev -- --prod-snapshot`). The flag overrides `DB_PATH` for this run and refuses to start if the snapshot is missing. Local changes affect only the copied database; this option does not connect to production.
+
 ### Docker Compose
 
 Compose uses its own default bridge network, matching the other apps on your production server. Traefik runs in host network mode and routes to the container without a publicly exposed host port. See [Production Deployment](docs/production-deployment.md) for first-time setup, GitHub secrets, empty database provisioning, backup/restore, and rollback.

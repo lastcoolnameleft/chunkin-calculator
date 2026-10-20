@@ -13,26 +13,23 @@ for (const colorScheme of ['dark', 'light']) {
     await page.emulateMedia({ colorScheme });
     await page.goto('/');
     const link = page.getByRole('link', { name: 'How this works: a plain-language guide and the math' });
-    for (const design of ['field', 'scoreboard', 'bright']) {
-      await page.locator('#designSelect').selectOption(design);
-      const colors = await link.evaluate(element => ({
-        link: getComputedStyle(element).color,
-        background: getComputedStyle(document.body).backgroundColor
-      }));
-      const foreground = luminance(colors.link);
-      const background = luminance(colors.background);
-      expect((Math.max(foreground, background) + 0.05) /
-        (Math.min(foreground, background) + 0.05)).toBeGreaterThanOrEqual(4.5);
-      await link.focus();
-      await expect(link).toHaveCSS('outline-style', 'solid');
-      const buttonColors = await page.getByRole('button', { name: 'Create Event', exact: true }).evaluate(element => ({
-        foreground: getComputedStyle(element).color,
-        background: getComputedStyle(element).backgroundColor
-      }));
-      const buttonForeground = luminance(buttonColors.foreground);
-      const buttonBackground = luminance(buttonColors.background);
-      expect((Math.max(buttonForeground, buttonBackground) + 0.05) /
-        (Math.min(buttonForeground, buttonBackground) + 0.05)).toBeGreaterThanOrEqual(4.5);
-    }
+    const colors = await link.evaluate(element => ({
+      link: getComputedStyle(element).color,
+      background: getComputedStyle(document.body).backgroundColor
+    }));
+    const foreground = luminance(colors.link);
+    const background = luminance(colors.background);
+    expect((Math.max(foreground, background) + 0.05) /
+      (Math.min(foreground, background) + 0.05)).toBeGreaterThanOrEqual(4.5);
+    await link.focus();
+    await expect(link).toHaveCSS('outline-style', 'solid');
+    const buttonColors = await page.getByRole('button', { name: 'Create Event', exact: true }).evaluate(element => ({
+      foreground: getComputedStyle(element).color,
+      background: getComputedStyle(element).backgroundColor
+    }));
+    const buttonForeground = luminance(buttonColors.foreground);
+    const buttonBackground = luminance(buttonColors.background);
+    expect((Math.max(buttonForeground, buttonBackground) + 0.05) /
+      (Math.min(buttonForeground, buttonBackground) + 0.05)).toBeGreaterThanOrEqual(4.5);
   });
 }

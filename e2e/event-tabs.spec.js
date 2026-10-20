@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-test('tabs isolate tasks, preserve drafts and support keyboard navigation across designs', async ({ page, request }) => {
+test('tabs isolate tasks, preserve drafts and support keyboard navigation', async ({ page, request }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const event = await (await request.post('/api/events', { data: {
@@ -15,16 +15,13 @@ test('tabs isolate tasks, preserve drafts and support keyboard navigation across
   await expect(page.locator('#label')).toBeFocused();
   await page.locator('#label').fill('Unsaved throw');
   await page.locator('#bearingA').fill('30');
-  for (const design of ['field', 'scoreboard', 'bright', 'notebook', 'classic']) {
-    await page.locator('#designSelect').selectOption(design);
-    for (const name of ['Setup', 'Log a Shot', 'Shot History', 'Visualization']) {
-      const tab = page.getByRole('tab', { name, exact: true });
-      await tab.click();
-      await expect(tab).toHaveAttribute('aria-selected', 'true');
-      await expect(page.getByRole('tabpanel')).toHaveCount(1);
-      await expect(page.locator('.event-panel:visible')).toHaveCount(1);
-      await expect(page.locator('.event-tabs [tabindex="0"]')).toHaveCount(1);
-    }
+  for (const name of ['Setup', 'Log a Shot', 'Shot History', 'Visualization']) {
+    const tab = page.getByRole('tab', { name, exact: true });
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    await expect(page.locator('.event-panel:visible')).toHaveCount(1);
+    await expect(page.locator('.event-tabs [tabindex="0"]')).toHaveCount(1);
   }
   await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await expect(page.locator('#baseline')).toHaveValue('80');
@@ -105,25 +102,22 @@ test('spectators and locked editors can navigate read-only tasks without enterin
   await expect(page.locator('#unlockCard')).toBeVisible();
 });
 
-test('every task fits small phones in all designs for both event modes', async ({ page, request }) => {
+test('every task fits small phones for both event modes', async ({ page, request }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   for (const mode of ['gps', 'bearings']) {
     const event = await (await request.post('/api/events', { data: { name: `Small ${mode}`, measurementMode: mode } })).json();
     await page.goto(`/event/${event.id}`);
     await expect(page.locator('#eventSummaryName')).toHaveText(event.name);
-    for (const design of ['field', 'scoreboard', 'bright', 'notebook', 'classic']) {
-      await page.locator('#designSelect').selectOption(design);
-      for (const name of ['Setup', 'Log a Shot', 'Shot History', 'Visualization']) {
-        await page.getByRole('tab', { name, exact: true }).click();
-        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-        const tab = await page.getByRole('tab', { name, exact: true }).boundingBox();
-        expect(tab.width).toBeGreaterThan(0);
-        expect(tab.height).toBeGreaterThanOrEqual(44);
-        const labels = await page.locator('.event-tabs [role="tab"]:visible').evaluateAll(buttons =>
-          buttons.map(button => ({ name: button.textContent, width: button.clientWidth, contentWidth: button.scrollWidth })));
-        for (const label of labels) {
-          expect(label.contentWidth, `${design}: ${label.name} fits its tab`).toBeLessThanOrEqual(label.width);
-        }
+    for (const name of ['Setup', 'Log a Shot', 'Shot History', 'Visualization']) {
+      await page.getByRole('tab', { name, exact: true }).click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+      const tab = await page.getByRole('tab', { name, exact: true }).boundingBox();
+      expect(tab.width).toBeGreaterThan(0);
+      expect(tab.height).toBeGreaterThanOrEqual(44);
+      const labels = await page.locator('.event-tabs [role="tab"]:visible').evaluateAll(buttons =>
+        buttons.map(button => ({ name: button.textContent, width: button.clientWidth, contentWidth: button.scrollWidth })));
+      for (const label of labels) {
+        expect(label.contentWidth, `${label.name} fits its tab`).toBeLessThanOrEqual(label.width);
       }
     }
   }
